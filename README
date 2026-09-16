@@ -1,0 +1,155 @@
+Lane Runner - a minimal 3D engine and an endless traffic game
+=============================================================
+
+Author : Andrew Rudov, SE-2408
+Course : Computer Graphics, final project
+Build  : OpenGL 3.3 core profile, GLFW + GLEW + GLM, C++17
+
+
+1. What this is
+---------------
+
+Two separate things live in this directory:
+
+  engine/  a small reusable 3D engine: window and input, shader loading,
+           indexed meshes with a primitive builder, a camera, a forward
+           renderer (one directional light, up to eight point lights, fog,
+           procedural sky) and a screen-space HUD.
+
+  game/    a game written against that engine: a three-lane endless road,
+           an arcade car controlled with the arrow keys, a day/night cycle
+           and traffic that gets denser and trickier over time.
+
+No deprecated immediate-mode OpenGL is used anywhere: everything goes
+through VAOs, VBOs and GLSL 330 shaders.
+
+
+2. How to build and run
+-----------------------
+
+    make
+    ./laneRunner
+
+`make run` does both. `make clean` removes build/ and the binary.
+The binary loads shaders/ at start-up, so run it from the project root
+(it also looks one and two directories up, so build/ works as well).
+
+Required packages, Arch:
+
+    sudo pacman -S base-devel glfw glew glm mesa
+
+Debian/Ubuntu:
+
+    sudo apt install build-essential libglfw3-dev libglew-dev libglm-dev
+
+Command-line flags (used for the screenshots and for smoke testing):
+
+    --frames N     quit after N rendered frames
+    --shot FILE    write the last frame as a binary PPM
+    --time T       start the day/night cycle at T in [0,1); 0.25 is noon
+
+
+3. Controls
+-----------
+
+    Left / Right  (or A / D)   change lane
+    Up            (or W)       accelerate
+    Down          (or S)       brake
+    R                          restart the run
+    P                          pause
+    F2                         save screenshot.ppm
+    ESC                        quit
+
+
+4. The HUD
+----------
+
+    top left      score (distance travelled plus 25 per overtaken car)
+    below it      speed bar and the current speed in km/h
+    top right     difficulty level, and a bar that fills as night falls
+    under it      number of cars overtaken
+    on a crash    final score, best score of the session, blinking strip
+                  meaning "press R"
+
+The HUD has no font: digits are drawn as seven-segment glyphs made of
+rectangles, which keeps the engine free of any texture or font dependency.
+
+
+5. Game rules
+-------------
+
+The player's car stays at z = 0 and the world scrolls towards it, which is
+what makes the road endless. Traffic spawns 185 m ahead, always slower than
+the player, and is recycled once it falls behind the camera. Road markings,
+street lamps, trees and buildings are recycled the same way.
+
+Difficulty rises one level every 18 seconds:
+
+  * the player's base speed grows from 24 m/s up to a cap of 58 m/s;
+  * the spawn interval shrinks from 1.15 s down to 0.30 s;
+  * from level 3 on, traffic starts changing lanes on its own.
+
+The spawner never blocks all three lanes at the same distance, so the run is
+always survivable. Touching another car ends the run; R starts a new one.
+
+
+6. The day/night cycle
+----------------------
+
+A full cycle takes 90 seconds. The sun direction is rotated around the
+scene; its elevation drives everything else:
+
+  * sky gradient, with an orange band near the horizon at dawn and dusk;
+  * the directional light switches from the sun to a dim blue moon light
+    once the sun is below the horizon, both fading out at the crossing so
+    there is no visible pop;
+  * ambient light, fog colour and fog density;
+  * stars appear in the sky shader, and the moon disc is drawn opposite the
+    sun;
+  * headlights, tail lights and the street lamps turn into point lights and
+    start glowing.
+
+Eight point lights are the shader's budget: two headlights plus the six
+street lamps nearest the car.
+
+
+7. Engine notes
+---------------
+
+  engine/window.*    GLFW context, framebuffer resize, frame clock, key
+                     edge detection, PPM screenshots
+  engine/shader.*    compile/link with readable errors, uniform location
+                     cache, asset lookup that also works from build/
+  engine/mesh.*      Vertex {position, normal, colour}, Mesh (VAO/VBO/EBO),
+                     MeshBuilder that appends transformed boxes, planes,
+                     cylinders and wedges into a single mesh
+  engine/camera.h    look-at view and perspective projection
+  engine/renderer.*  per-frame environment upload, sky pass, per-object
+                     draw with a Material {tint, emissive, specular,
+                     shininess}
+  engine/hud.*       screen-space rectangles, bars and seven-segment numbers
+
+  shaders/scene.*    Blinn-Phong with one directional and eight point
+                     lights, exponential-squared fog
+  shaders/sky.*      attribute-less full-screen triangle; the fragment
+                     shader rebuilds the view ray from the inverse
+                     view-projection matrix and draws the gradient, the sun,
+                     the moon and a cell-hashed star field
+  shaders/hud.*      pixel coordinates to NDC, flat colour
+
+
+8. Tested on
+------------
+
+Linux (CachyOS, kernel 7.x), g++ 16.2.1, Mesa with an Intel GPU, OpenGL 4.6
+core profile. GLEW resolves its entry points through GLX, so on a Wayland
+session the window is created on X11/XWayland automatically.
+
+
+9. Screenshots
+--------------
+
+screenshots/day.png, sunset.png and night.png show the same scene at three
+points of the day/night cycle. Press F2 in game to capture your own frame
+into screenshot.ppm (convert it with, for example, `magick screenshot.ppm
+shot.png`).
