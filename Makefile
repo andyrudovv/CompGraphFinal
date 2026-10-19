@@ -4,7 +4,7 @@ LDLIBS   := -lglfw -lGLEW -lGL
 
 TARGET  := laneRunner
 SOURCES := engine/window.cpp engine/shader.cpp engine/mesh.cpp engine/renderer.cpp \
-           engine/hud.cpp game/game.cpp game/main.cpp
+           engine/texgen.cpp engine/texture.cpp engine/hud.cpp game/game.cpp game/main.cpp
 OBJECTS := $(SOURCES:%.cpp=build/%.o)
 
 all: $(TARGET)

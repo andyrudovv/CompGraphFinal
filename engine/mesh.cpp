@@ -3,6 +3,7 @@
 #include <glm/gtc/matrix_inverse.hpp>
 
 #include <cmath>
+#include <cstddef>
 #include <utility>
 
 namespace engine {
@@ -54,6 +55,9 @@ void Mesh::upload(const std::vector<Vertex>& vertices, const std::vector<GLuint>
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, color));
 
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, uv));
+
     glBindVertexArray(0);
     indexCount_ = static_cast<GLsizei>(indices.size());
 }
@@ -68,6 +72,34 @@ void Mesh::draw() const {
 void MeshBuilder::clear() {
     vertices_.clear();
     indices_.clear();
+    uvPerMeter_ = 1.0f;
+    facadeLayout_ = false;
+}
+
+MeshBuilder& MeshBuilder::uvPerMeter(float repeatsPerMetre) {
+    uvPerMeter_ = repeatsPerMetre;
+    return *this;
+}
+
+MeshBuilder& MeshBuilder::facadeLayout(bool enabled) {
+    facadeLayout_ = enabled;
+    return *this;
+}
+
+// The face is projected along its dominant normal axis. The signs are chosen so
+// that v grows towards -Z on every face of the road layout; the road, curbs and
+// grass then scroll in one direction when the texture offset is increased.
+glm::vec2 MeshBuilder::projectUv(const glm::vec3& p, const glm::vec3& n) const {
+    glm::vec3 a = glm::abs(n);
+    glm::vec2 uv;
+    if (a.y >= a.x && a.y >= a.z) {
+        uv = glm::vec2(p.x, -p.z);                                   // floor / roof
+    } else if (a.x >= a.z) {
+        uv = facadeLayout_ ? glm::vec2(p.z, p.y) : glm::vec2(p.y, -p.z);  // side walls
+    } else {
+        uv = glm::vec2(p.x, p.y);                                    // front / back walls
+    }
+    return uv * uvPerMeter_;
 }
 
 void MeshBuilder::addTriangle(const glm::mat4& xform, const glm::mat3& normalMat,
@@ -76,13 +108,13 @@ void MeshBuilder::addTriangle(const glm::mat4& xform, const glm::mat3& normalMat
     glm::vec3 pa = glm::vec3(xform * glm::vec4(a, 1.0f));
     glm::vec3 pb = glm::vec3(xform * glm::vec4(b, 1.0f));
     glm::vec3 pc = glm::vec3(xform * glm::vec4(c, 1.0f));
-    glm::vec3 n = normalMat * glm::normalize(glm::cross(b - a, c - a));
-    n = glm::normalize(n);
+    glm::vec3 localNormal = glm::normalize(glm::cross(b - a, c - a));
+    glm::vec3 n = glm::normalize(normalMat * localNormal);
 
     GLuint base = static_cast<GLuint>(vertices_.size());
-    vertices_.push_back({pa, n, color});
-    vertices_.push_back({pb, n, color});
-    vertices_.push_back({pc, n, color});
+    vertices_.push_back({pa, n, color, projectUv(a, localNormal)});
+    vertices_.push_back({pb, n, color, projectUv(b, localNormal)});
+    vertices_.push_back({pc, n, color, projectUv(c, localNormal)});
     indices_.push_back(base);
     indices_.push_back(base + 1);
     indices_.push_back(base + 2);

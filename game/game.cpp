@@ -21,6 +21,21 @@ static const float CAR_HALF_Z = 2.1f;
 static const float DAY_CYCLE = 90.0f;  // seconds for a full day/night rotation
 static const float TWO_PI = 6.28318530718f;
 
+// How many metres one repeat of each texture covers. The road, grass and curb
+// textures scroll with the travelled distance; one facade tile is a 4 x 4 block
+// of windows (2.4 m wide, 3.2 m tall each).
+static const float ASPHALT_TILE = 4.0f;
+static const float GRASS_TILE = 8.0f;
+static const float CURB_TILE = 3.0f;
+static const float FACADE_TILE_W = 9.6f;
+static const float FACADE_TILE_H = 12.8f;
+
+// Texture offset for a surface that slides under the car: the fractional part of
+// distance / tile keeps the number small, the texture repeats anyway.
+static float scrollOffset(float distance, float tileMetres) {
+    return std::fmod(distance / tileMetres, 1.0f);
+}
+
 static float lanePosition(int lane) { return (lane - 1) * LANE_WIDTH; }
 
 static const glm::vec3 TRAFFIC_COLORS[] = {
@@ -41,6 +56,12 @@ int Game::difficultyLevel() const {
 bool Game::init() {
     if (!renderer_.init()) return false;
     if (!hud_.init()) return false;
+    if (!grassTex_.create(engine::generateGrass()) ||
+        !asphaltTex_.create(engine::generateAsphalt()) ||
+        !concreteTex_.create(engine::generateConcrete()) ||
+        !facadeTex_.create(engine::generateFacade())) {
+        return false;
+    }
     buildMeshes();
     buildProps();
     reset();
@@ -71,21 +92,32 @@ void Game::buildMeshes() {
     engine::MeshBuilder b;
     const glm::mat4 I(1.0f);
 
+    b.uvPerMeter(1.0f / GRASS_TILE);
     b.plane(I, 1600.0f, 1600.0f, glm::vec3(0.12f, 0.25f, 0.11f));
     b.build(ground_);
 
-    // Road surface, edge lines and curbs share one mesh: the road never moves.
+    // Road surface and edge lines share one mesh: the road never moves, only its
+    // texture is scrolled. The worn-paint look of the lines comes from the same
+    // asphalt texture.
     b.clear();
+    b.uvPerMeter(1.0f / ASPHALT_TILE);
     b.plane(glm::translate(I, glm::vec3(0.0f, 0.02f, 0.0f)), ROAD_HALF * 2.0f, ROAD_LENGTH,
             glm::vec3(0.11f, 0.11f, 0.125f));
     for (int s = -1; s <= 1; s += 2) {
         float x = s * (ROAD_HALF - 0.45f);
         b.box(glm::translate(I, glm::vec3(x, 0.03f, 0.0f)), glm::vec3(0.22f, 0.02f, ROAD_LENGTH),
               glm::vec3(0.86f, 0.86f, 0.80f));
+    }
+    b.build(road_);
+
+    // Curbs are a separate mesh so they can use the concrete texture.
+    b.clear();
+    b.uvPerMeter(1.0f / CURB_TILE);
+    for (int s = -1; s <= 1; s += 2) {
         b.box(glm::translate(I, glm::vec3(s * (ROAD_HALF + 0.35f), 0.11f, 0.0f)),
               glm::vec3(0.7f, 0.22f, ROAD_LENGTH), glm::vec3(0.33f, 0.33f, 0.35f));
     }
-    b.build(road_);
+    b.build(curb_);
 
     // One "dash" holds both lane separators, so a row of markings is one draw call.
     b.clear();
@@ -156,12 +188,19 @@ void Game::buildMeshes() {
             glm::vec3(0.16f, 0.38f, 0.16f));
     b.build(tree_);
 
+    // Unit-cube tower: the UVs span 0..1 per wall, and render() scales them by
+    // width / FACADE_TILE_W and height / FACADE_TILE_H, so windows keep their size
+    // on towers of any dimension.
     b.clear();
+    b.facadeLayout(true);
     b.box(glm::translate(I, glm::vec3(0.0f, 0.5f, 0.0f)), glm::vec3(1.0f, 1.0f, 1.0f),
           glm::vec3(1.0f));
+    b.build(building_);
+
+    b.clear();
     b.box(glm::translate(I, glm::vec3(0.0f, 1.02f, 0.0f)), glm::vec3(1.08f, 0.05f, 1.08f),
           glm::vec3(0.35f, 0.35f, 0.38f));
-    b.build(building_);
+    b.build(buildingRoof_);
 }
 
 void Game::buildProps() {
@@ -470,12 +509,22 @@ void Game::render(engine::Window& window) {
     const glm::mat4 I(1.0f);
     engine::Material flat;
     flat.specular = 0.0f;
+    flat.texture = &grassTex_;
+    flat.uvOffset = glm::vec2(0.0f, scrollOffset(distance_, GRASS_TILE));
     renderer_.draw(ground_, I, flat);
 
     engine::Material asphalt;
     asphalt.specular = 0.12f;
     asphalt.shininess = 16.0f;
+    asphalt.texture = &asphaltTex_;
+    asphalt.uvOffset = glm::vec2(0.0f, scrollOffset(distance_, ASPHALT_TILE));
     renderer_.draw(road_, I, asphalt);
+
+    engine::Material curb;
+    curb.specular = 0.08f;
+    curb.texture = &concreteTex_;
+    curb.uvOffset = glm::vec2(0.0f, scrollOffset(distance_, CURB_TILE));
+    renderer_.draw(curb_, I, curb);
 
     engine::Material marking;
     marking.specular = 0.05f;
@@ -507,11 +556,25 @@ void Game::render(engine::Window& window) {
                 break;
             }
             case Prop::Building: {
-                engine::Material m;
-                m.tint = p.color;
-                m.specular = 0.1f;
-                renderer_.draw(building_,
-                               glm::scale(model, glm::vec3(p.scale, p.height, p.scale)), m);
+                glm::mat4 tower = glm::scale(model, glm::vec3(p.scale, p.height, p.scale));
+
+                engine::Material wall;
+                wall.tint = p.color;
+                wall.specular = 0.1f;
+                wall.texture = &facadeTex_;
+                wall.uvScale = glm::vec2(p.scale / FACADE_TILE_W, p.height / FACADE_TILE_H);
+                // Shift the window pattern by whole window columns/rows, so every
+                // tower lights a different set of windows without cutting a window.
+                std::size_t id = static_cast<std::size_t>(&p - props_.data());
+                wall.uvOffset = glm::vec2(0.25f * static_cast<float>(id % 4),
+                                          0.25f * static_cast<float>((id / 4) % 4));
+                wall.textureGlow = lampGlow;
+                renderer_.draw(building_, tower, wall);
+
+                engine::Material roof;
+                roof.tint = p.color;
+                roof.specular = 0.1f;
+                renderer_.draw(buildingRoof_, tower, roof);
                 break;
             }
         }

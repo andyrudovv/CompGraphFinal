@@ -7,6 +7,8 @@
 #include "mesh.h"
 #include "renderer.h"
 #include "shader.h"
+#include "texgen.h"
+#include "texture.h"
 #include "window.h"
 
 #endif

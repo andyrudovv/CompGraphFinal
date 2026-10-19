@@ -9,6 +9,7 @@
 #include "camera.h"
 #include "mesh.h"
 #include "shader.h"
+#include "texture.h"
 
 namespace engine {
 
@@ -20,6 +21,17 @@ struct Material {
     float emissive = 0.0f;   // 1 = ignore lighting, used for lamps and tail lights
     float specular = 0.25f;
     float shininess = 32.0f;
+
+    // Optional texture. The final surface colour is vertex colour * tint *
+    // texture, with the UVs computed as uv * uvScale + uvOffset (repeat
+    // wrapping), so one mesh can be tiled differently per draw call and a moving
+    // surface only needs its offset changed.
+    const Texture* texture = nullptr;
+    glm::vec2 uvScale{1.0f};
+    glm::vec2 uvOffset{0.0f};
+    // 0..1: how strongly the texture's alpha channel (lit windows) glows,
+    // independent of the lighting. Driven by the day/night cycle.
+    float textureGlow = 0.0f;
 };
 
 struct PointLight {

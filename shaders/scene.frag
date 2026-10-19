@@ -5,6 +5,7 @@
 in vec3 vWorldPos;
 in vec3 vNormal;
 in vec3 vColor;
+in vec2 vUV;
 
 out vec4 fColor;
 
@@ -13,6 +14,16 @@ uniform vec3 uTint;
 uniform float uEmissive;
 uniform float uSpecular;
 uniform float uShininess;
+
+// Texturing. Textures are authored around 0.8 grey (see engine/texgen.h), so the
+// gain restores the brightness of the vertex colour and the texture only adds
+// detail. The alpha channel is a mask of self-lit pixels (windows at night).
+uniform sampler2D uTex;
+uniform int uUseTex;
+uniform vec2 uUvScale;
+uniform vec2 uUvOffset;
+uniform float uTexGlow;
+const float TEX_GAIN = 1.25;
 
 uniform vec3 uLightDir;
 uniform vec3 uLightColor;
@@ -28,6 +39,12 @@ uniform float uFogDensity;
 
 void main() {
     vec3 albedo = vColor * uTint;
+    vec3 glowColor = vec3(0.0);
+    if (uUseTex != 0) {
+        vec4 texel = texture(uTex, vUV * uUvScale + uUvOffset);
+        albedo *= texel.rgb * TEX_GAIN;
+        glowColor = texel.rgb * texel.a * uTexGlow;
+    }
     vec3 N = normalize(vNormal);
     vec3 V = normalize(uCamPos - vWorldPos);
 
@@ -54,7 +71,7 @@ void main() {
         }
     }
 
-    vec3 color = mix(lit, albedo, uEmissive);
+    vec3 color = mix(lit, albedo, uEmissive) + glowColor;
 
     float dist = length(uCamPos - vWorldPos);
     float fog = 1.0 - exp(-pow(dist * uFogDensity, 2.0));

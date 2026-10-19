@@ -10,6 +10,8 @@ bool Renderer::init() {
     if (!scene_.loadFromFiles("shaders/scene.vert", "shaders/scene.frag")) return false;
     if (!sky_.loadFromFiles("shaders/sky.vert", "shaders/sky.frag")) return false;
     glGenVertexArrays(1, &emptyVao_);  // core profile needs a bound VAO even without attributes
+    scene_.use();
+    scene_.setInt("uTex", 0);  // the scene sampler always reads texture unit 0
     return true;
 }
 
@@ -74,6 +76,15 @@ void Renderer::draw(const Mesh& mesh, const glm::mat4& model, const Material& ma
     scene_.setFloat("uEmissive", material.emissive);
     scene_.setFloat("uSpecular", material.specular);
     scene_.setFloat("uShininess", material.shininess);
+
+    bool textured = material.texture && material.texture->valid();
+    scene_.setInt("uUseTex", textured ? 1 : 0);
+    if (textured) {
+        material.texture->bind(0);
+        scene_.setVec2("uUvScale", material.uvScale);
+        scene_.setVec2("uUvOffset", material.uvOffset);
+        scene_.setFloat("uTexGlow", material.textureGlow);
+    }
     mesh.draw();
 }
 

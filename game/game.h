@@ -63,7 +63,10 @@ private:
 
     engine::Mesh ground_, road_, dash_, curb_;
     engine::Mesh carBody_, carTrim_, carHead_, carTail_;
-    engine::Mesh lampPole_, lampHead_, tree_, building_;
+    engine::Mesh lampPole_, lampHead_, tree_, building_, buildingRoof_;
+
+    // Procedural textures (generated in init, nothing is loaded from disk).
+    engine::Texture grassTex_, asphaltTex_, concreteTex_, facadeTex_;
 
     State state_ = State::Playing;
     float elapsed_ = 0.0f;
