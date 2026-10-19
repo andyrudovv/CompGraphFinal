@@ -5,6 +5,7 @@
 #include "camera.h"
 #include "hud.h"
 #include "mesh.h"
+#include "objloader.h"
 #include "renderer.h"
 #include "shader.h"
 #include "texgen.h"
@@ -12,3 +13,4 @@
 #include "window.h"
 
 #endif
+ 
