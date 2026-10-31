@@ -10,6 +10,10 @@
 namespace engine {
 
 std::string assetPath(const std::string& relative) {
+#ifdef LANE_RUNNER_ASSET_DIR
+    std::string bundled = std::string(LANE_RUNNER_ASSET_DIR) + "/" + relative;
+    if (std::ifstream(bundled).good()) return bundled;
+#endif
     const char* prefixes[] = {"", "../", "../../"};
     for (const char* p : prefixes) {
         std::string candidate = std::string(p) + relative;
@@ -61,7 +65,11 @@ bool Shader::loadFromFiles(const std::string& vertexPath, const std::string& fra
 
     GLuint vs = compile(GL_VERTEX_SHADER, vsrc, vertexPath);
     GLuint fs = compile(GL_FRAGMENT_SHADER, fsrc, fragmentPath);
-    if (!vs || !fs) return false;
+    if (!vs || !fs) {
+        if (vs) glDeleteShader(vs);
+        if (fs) glDeleteShader(fs);
+        return false;
+    }
 
     GLuint prog = glCreateProgram();
     glAttachShader(prog, vs);

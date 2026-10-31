@@ -28,7 +28,7 @@ float stars(vec3 dir) {
     float present = step(0.93, r.z);
     float d = length(f - r);
     float twinkle = 0.6 + 0.4 * r.x;
-    return present * smoothstep(0.22, 0.0, d) * twinkle;
+    return present * (1.0 - smoothstep(0.0, 0.22, d)) * twinkle;
 }
 
 void main() {
@@ -37,7 +37,7 @@ void main() {
 
     float h = dir.y;
     vec3 sky = mix(uHorizon, uZenith, pow(clamp(h, 0.0, 1.0), 0.5));
-    sky = mix(sky, uGround, smoothstep(0.0, -0.08, h));
+    sky = mix(sky, uGround, (1.0 - smoothstep(-0.08, 0.0, h)));
 
     sky += vec3(stars(dir)) * uNight * smoothstep(-0.02, 0.15, h);
 

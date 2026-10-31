@@ -98,7 +98,15 @@ namespace game {
         return true;
     }
 
+    void Game::setDayTime(float t) {
+        if (!std::isfinite(t)) return;
+        dayTime_ = t - std::floor(t);
+        updateDayNight(0.0f);
+    }
+
     void Game::reset() {
+        accumulator_ = 0.0;
+        paused_ = false;
         state_ = State::Playing;
         elapsed_ = 0.0f;
         distance_ = 0.0f;
@@ -347,7 +355,12 @@ namespace game {
     }
 
     void Game::update(engine::Window& window) {
-        float dt = window.dt();
+        // Input edges are consumed once per rendered frame, not per physics step.
+        if (window.keyPressed(GLFW_KEY_1)) { setDayTime(0.25f); dayCycle_ = false; }
+        if (window.keyPressed(GLFW_KEY_2)) { setDayTime(0.48f); dayCycle_ = false; }
+        if (window.keyPressed(GLFW_KEY_3)) { setDayTime(0.75f); dayCycle_ = false; }
+        if (window.keyPressed(GLFW_KEY_4)) dayCycle_ = !dayCycle_;
+
 
         if (window.keyPressed(GLFW_KEY_ESCAPE)) window.close();
         if (window.keyPressed(GLFW_KEY_P)) paused_ = !paused_;
@@ -356,38 +369,54 @@ namespace game {
             reset();
         }
 
-        if (paused_) dt = 0.0f;
-
-        if (state_ == State::Playing) {
-            elapsed_ += dt;
-            updatePlayer(window, dt);
-            updateTraffic(dt);
-            updateWorld(dt);
-            checkCollision();
-            distance_ += speed_ * dt;
-            score_ = static_cast<int>(distance_ * 0.5f) + overtakes_ * 25;
+        if (!paused_ && state_ == State::Playing &&
+            (window.keyPressed(GLFW_KEY_LEFT) || window.keyPressed(GLFW_KEY_A))) {
+            playerLane_ = std::max(playerLane_ - 1, 0);
         }
-        else {
-            // Roll to a stop, keep the world alive so the scene still reads as 3D.
-            speed_ = std::max(speed_ - 26.0f * dt, 0.0f);
-            crashFlash_ = std::max(crashFlash_ - dt * 0.9f, 0.0f);
-            updateWorld(dt);
-            updateTraffic(dt);  // the pile-up keeps developing behind the crash
-
-            // The player's wreck slides sideways and spins, then settles.
-            playerX_ += playerVx_ * dt;
-            playerVx_ *= std::exp(-2.2f * dt);
-            playerX_ = glm::clamp(playerX_, -(ROAD_HALF + 0.8f), ROAD_HALF + 0.8f);
-            playerYaw_ += playerYawVel_ * dt;
-            playerYawVel_ *= std::exp(-1.1f * dt);
+        if (!paused_ && state_ == State::Playing &&
+            (window.keyPressed(GLFW_KEY_RIGHT) || window.keyPressed(GLFW_KEY_D))) {
+            playerLane_ = std::min(playerLane_ + 1, LANE_COUNT - 1);
         }
 
-        wheelAngle_ = std::fmod(wheelAngle_ + speed_ * dt / WHEEL_RADIUS, TWO_PI);
-        updateSparks(dt);
-        updateDebris(dt);
-        shakeTime_ = std::max(shakeTime_ - dt * 1.5f, 0.0f);
+        constexpr double STEP = 1.0 / 120.0;
+        if (paused_) accumulator_ = 0.0;
+        else accumulator_ += window.dt();
+        while (accumulator_ >= STEP) {
+            accumulator_ -= STEP;
+            const float dt = static_cast<float>(STEP);
 
-        updateDayNight(dt);
+            if (state_ == State::Playing) {
+                elapsed_ += dt;
+                updatePlayer(window, dt);
+                updateTraffic(dt);
+                updateWorld(dt);
+                checkCollision();
+                distance_ += speed_ * dt;
+                score_ = static_cast<int>(distance_ * 0.5f) + overtakes_ * 25;
+            }
+            else {
+                // Roll to a stop, keep the world alive so the scene still reads as 3D.
+                speed_ = std::max(speed_ - 26.0f * dt, 0.0f);
+                crashFlash_ = std::max(crashFlash_ - dt * 0.9f, 0.0f);
+                updateWorld(dt);
+                updateTraffic(dt);  // the pile-up keeps developing behind the crash
+
+                // The player's wreck slides sideways and spins, then settles.
+                playerX_ += playerVx_ * dt;
+                playerVx_ *= std::exp(-2.2f * dt);
+                playerX_ = glm::clamp(playerX_, -(ROAD_HALF + 0.8f), ROAD_HALF + 0.8f);
+                playerYaw_ += playerYawVel_ * dt;
+                playerYawVel_ *= std::exp(-1.1f * dt);
+            }
+
+            wheelAngle_ = std::fmod(wheelAngle_ + speed_ * dt / WHEEL_RADIUS, TWO_PI);
+            updateSparks(dt);
+            updateDebris(dt);
+            shakeTime_ = std::max(shakeTime_ - dt * 1.5f, 0.0f);
+
+            updateDayNight(dayCycle_ ? dt : 0.0f);
+        }
+        updateDayNight(0.0f);
         collectLights();
 
         // Chase camera: it leans with the lane change and drifts back when quick.
@@ -403,13 +432,6 @@ namespace game {
     }
 
     void Game::updatePlayer(engine::Window& window, float dt) {
-        if (window.keyPressed(GLFW_KEY_LEFT) || window.keyPressed(GLFW_KEY_A)) {
-            playerLane_ = std::max(playerLane_ - 1, 0);
-        }
-        if (window.keyPressed(GLFW_KEY_RIGHT) || window.keyPressed(GLFW_KEY_D)) {
-            playerLane_ = std::min(playerLane_ + 1, LANE_COUNT - 1);
-        }
-
         bool accelerating = window.keyDown(GLFW_KEY_UP) || window.keyDown(GLFW_KEY_W);
         bool braking = window.keyDown(GLFW_KEY_DOWN) || window.keyDown(GLFW_KEY_S);
         float wanted = accelerating ? 1.28f : (braking ? 0.68f : 1.0f);
@@ -839,7 +861,7 @@ namespace game {
 
     void Game::updateDayNight(float dt) {
         dayTime_ += dt / DAY_CYCLE;
-        if (dayTime_ >= 1.0f) dayTime_ -= 1.0f;
+        dayTime_ -= std::floor(dayTime_);
 
         float angle = dayTime_ * TWO_PI;
         glm::vec3 sunDir = glm::normalize(glm::vec3(std::cos(angle) * 0.9f, std::sin(angle), -0.35f));
@@ -852,7 +874,7 @@ namespace game {
             sunset * 0.85f);
 
         float sunPower = glm::smoothstep(-0.02f, 0.22f, elevation);
-        float moonPower = glm::smoothstep(0.02f, -0.18f, elevation) * 0.22f;
+        float moonPower = (1.0f - glm::smoothstep(-0.18f, 0.02f, elevation)) * 0.22f;
 
         env_.sunDirection = sunDir;
         env_.sunColor = sunTint * (0.25f + 0.75f * sunPower);
@@ -1127,6 +1149,8 @@ namespace game {
             renderer_.draw(spark_, glm::scale(glm::translate(I, s.pos), glm::vec3(k)), sparkMat);
         }
 
+        window.setTitle(std::string("Lane Runner | 1 Day  2 Sunset  3 Night  4 Cycle: ") +
+            (dayCycle_ ? "ON" : "OFF"));
         drawHud(window);
     }
 

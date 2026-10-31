@@ -71,7 +71,7 @@ namespace game {
         bool init();
         void update(engine::Window& window);
         void render(engine::Window& window);
-        void setDayTime(float t) { dayTime_ = t; }
+        void setDayTime(float t);
 
     private:
         enum class State { Playing, Crashed };
@@ -132,6 +132,8 @@ namespace game {
         float crashFlash_ = 0.0f;
         float shakeTime_ = 0.0f;   // camera shake, 1 -> 0
         bool paused_ = false;
+        bool dayCycle_ = true;
+        double accumulator_ = 0.0;
 
         // Player
         int playerLane_ = 1;

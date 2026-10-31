@@ -28,8 +28,16 @@ through VAOs, VBOs and GLSL 330 shaders.
 2. How to build and run
 -----------------------
 
-    make
-    ./laneRunner
+    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+    cmake --build build --parallel
+    ./build/laneRunner
+
+Or use the pkg-config based Makefile: make && ./laneRunner.
+macOS dependencies: brew install cmake pkg-config glfw glew glm
+CMake dependencies: OpenGL, GLFW >= 3.3, GLEW, GLM.
+CMake copies shaders into build/ on each build. The build stores their absolute
+location, so the executable can be launched from another working directory.
+Reconfigure/rebuild if moving the project or build directory.
 
 `make run` does both. `make clean` removes build/ and the binary.
 The binary loads shaders/ at start-up, so run it from the project root
@@ -58,6 +66,10 @@ Command-line flags (used for the screenshots and for smoke testing):
     Down          (or S)       brake
     R                          restart the run
     P                          pause
+    1                          fixed daytime (noon)
+    2                          fixed sunset
+    3                          fixed night
+    4                          toggle automatic day/night cycle
     F2                         save screenshot.ppm
     ESC                        quit
 
@@ -96,6 +108,11 @@ always survivable. Touching another car ends the run; R starts a new one.
 
 6. The day/night cycle
 ----------------------
+
+The automatic cycle is enabled at startup. Keys 1/2/3 select and freeze a preset;
+4 resumes or freezes the cycle at the current time. Presets work while paused.
+Restart preserves the selected lighting mode. The window title lists the keys
+and whether the cycle is ON or OFF.
 
 A full cycle takes 90 seconds. The sun direction is rotated around the
 scene; its elevation drives everything else:
@@ -200,3 +217,14 @@ Libraries (linked, not bundled): GLFW (zlib/libpng licence), GLEW (Modified BSD
 and MIT licences), GLM (MIT licence). There are no third-party models, textures
 or shaders: every texture and shader in this repository is written for this
 project.
+
+11. Simulation and portability
+------------------------------
+
+Gameplay and collision checks run at a fixed 120 Hz, independently of rendering.
+Input edges are handled once per rendered frame. Pausing clears accumulated
+time; long stalls are capped at 0.1 s to bound catch-up work. Collision shapes
+remain conservative axis-aligned bounds of rotated cars (not full rigid bodies
+or continuous collision detection).
+The frame clock uses double precision. GLFW key polling uses only valid key
+codes. Sky and moon transitions use ascending smoothstep bounds.

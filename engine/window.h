@@ -35,12 +35,13 @@ private:
 
     GLFWwindow* handle_ = nullptr;
     int width_ = 0, height_ = 0;
-    float time_ = 0.0f, dt_ = 0.0f, last_ = 0.0f;
+    double time_ = 0.0, last_ = 0.0;
+    float dt_ = 0.0f;
     bool curr_[KEY_COUNT] = {};
     bool prev_[KEY_COUNT] = {};
 };
 
-// Grabs the front-left framebuffer into a binary PPM (handy for the report).
+// Grabs the back framebuffer into a binary PPM (handy for the report).
 bool saveScreenshot(const std::string& path, int width, int height);
 
 }  // namespace engine

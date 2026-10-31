@@ -57,7 +57,7 @@ bool Window::create(int width, int height, const std::string& title) {
     glEnable(GL_CULL_FACE);
     glEnable(GL_MULTISAMPLE);
 
-    last_ = static_cast<float>(glfwGetTime());
+    last_ = glfwGetTime();
     return true;
 }
 
@@ -69,12 +69,12 @@ void Window::beginFrame() {
     glfwPollEvents();
     glfwGetFramebufferSize(handle_, &width_, &height_);
 
-    time_ = static_cast<float>(glfwGetTime());
-    dt_ = time_ - last_;
+    time_ = glfwGetTime();
+    dt_ = static_cast<float>(time_ - last_);
     last_ = time_;
-    if (dt_ > 0.1f) dt_ = 0.1f;  // clamp hitches so nothing tunnels through a car
+    if (dt_ > 0.1f) dt_ = 0.1f;  // bound catch-up work after a long stall
 
-    for (int k = 0; k < KEY_COUNT; ++k) {
+    for (int k = GLFW_KEY_SPACE; k <= GLFW_KEY_LAST; ++k) {
         prev_[k] = curr_[k];
         curr_[k] = glfwGetKey(handle_, k) == GLFW_PRESS;
     }
