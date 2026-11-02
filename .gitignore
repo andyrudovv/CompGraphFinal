@@ -2,3 +2,9 @@ build/
 laneRunner
 *.o
 *.ppm
+
+.vs/
+x64/
+Debug/
+Release/
+*.user
