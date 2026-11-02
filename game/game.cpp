@@ -1,6 +1,5 @@
 #include "game.h"
 
-#include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <algorithm>
@@ -356,25 +355,25 @@ namespace game {
 
     void Game::update(engine::Window& window) {
         // Input edges are consumed once per rendered frame, not per physics step.
-        if (window.keyPressed(GLFW_KEY_1)) { setDayTime(0.25f); dayCycle_ = false; }
-        if (window.keyPressed(GLFW_KEY_2)) { setDayTime(0.48f); dayCycle_ = false; }
-        if (window.keyPressed(GLFW_KEY_3)) { setDayTime(0.75f); dayCycle_ = false; }
-        if (window.keyPressed(GLFW_KEY_4)) dayCycle_ = !dayCycle_;
+        if (window.keyPressed(engine::Key1)) { setDayTime(0.25f); dayCycle_ = false; }
+        if (window.keyPressed(engine::Key2)) { setDayTime(0.48f); dayCycle_ = false; }
+        if (window.keyPressed(engine::Key3)) { setDayTime(0.75f); dayCycle_ = false; }
+        if (window.keyPressed(engine::Key4)) dayCycle_ = !dayCycle_;
 
 
-        if (window.keyPressed(GLFW_KEY_ESCAPE)) window.close();
-        if (window.keyPressed(GLFW_KEY_P)) paused_ = !paused_;
-        if (window.keyPressed(GLFW_KEY_R)) {
+        if (window.keyPressed(engine::KeyEscape)) window.close();
+        if (window.keyPressed(engine::KeyP)) paused_ = !paused_;
+        if (window.keyPressed(engine::KeyR)) {
             best_ = std::max(best_, score_);
             reset();
         }
 
         if (!paused_ && state_ == State::Playing &&
-            (window.keyPressed(GLFW_KEY_LEFT) || window.keyPressed(GLFW_KEY_A))) {
+            (window.keyPressed(engine::KeyLeft) || window.keyPressed(engine::KeyA))) {
             playerLane_ = std::max(playerLane_ - 1, 0);
         }
         if (!paused_ && state_ == State::Playing &&
-            (window.keyPressed(GLFW_KEY_RIGHT) || window.keyPressed(GLFW_KEY_D))) {
+            (window.keyPressed(engine::KeyRight) || window.keyPressed(engine::KeyD))) {
             playerLane_ = std::min(playerLane_ + 1, LANE_COUNT - 1);
         }
 
@@ -432,8 +431,8 @@ namespace game {
     }
 
     void Game::updatePlayer(engine::Window& window, float dt) {
-        bool accelerating = window.keyDown(GLFW_KEY_UP) || window.keyDown(GLFW_KEY_W);
-        bool braking = window.keyDown(GLFW_KEY_DOWN) || window.keyDown(GLFW_KEY_S);
+        bool accelerating = window.keyDown(engine::KeyUp) || window.keyDown(engine::KeyW);
+        bool braking = window.keyDown(engine::KeyDown) || window.keyDown(engine::KeyS);
         float wanted = accelerating ? 1.28f : (braking ? 0.68f : 1.0f);
         boost_ += (wanted - boost_) * std::min(dt * 3.0f, 1.0f);
 
@@ -1116,7 +1115,7 @@ namespace game {
         glm::mat4 player = glm::translate(I, glm::vec3(playerX_, 0.0f, 0.0f));
         player = glm::rotate(player, playerYaw_, glm::vec3(0.0f, 1.0f, 0.0f));
         player = glm::rotate(player, playerRoll_, glm::vec3(0.0f, 0.0f, 1.0f));
-        float braking = window.keyDown(GLFW_KEY_DOWN) || window.keyDown(GLFW_KEY_S) ? 1.0f : 0.4f;
+        float braking = window.keyDown(engine::KeyDown) || window.keyDown(engine::KeyS) ? 1.0f : 0.4f;
         if (state_ == State::Crashed) braking = hazard;
         drawCar(player, PLAYER_COLOR, glm::smoothstep(0.2f, 0.6f, night_), braking, wheelAngle_);
         if (!carModel_) {  // the wing and stripes only fit the built-in body

@@ -1,8 +1,8 @@
 CXX      := g++
 CXXFLAGS := -std=c++17 -Wall -Wextra -O2
 PKG_CONFIG ?= pkg-config
-CXXFLAGS += $(shell $(PKG_CONFIG) --cflags glfw3 glew glm)
-LDLIBS   := $(shell $(PKG_CONFIG) --libs glfw3 glew glm)
+CXXFLAGS += $(shell $(PKG_CONFIG) --cflags glew glm)
+LDLIBS   := $(shell $(PKG_CONFIG) --libs glew glm) -lglut
 ifeq ($(shell uname -s),Darwin)
 LDLIBS += -framework OpenGL
 else

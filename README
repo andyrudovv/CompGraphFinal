@@ -3,7 +3,7 @@ Lane Runner - a minimal 3D engine and an endless traffic game
 
 Author : Andrew Rudov, SE-2408
 Course : Computer Graphics, final project
-Build  : OpenGL 3.3 core profile, GLFW + GLEW + GLM, C++17
+Build  : OpenGL 3.3 core profile, freeglut + GLEW + GLM, C++17
 
 
 1. What this is
@@ -33,8 +33,9 @@ through VAOs, VBOs and GLSL 330 shaders.
     ./build/laneRunner
 
 Or use the pkg-config based Makefile: make && ./laneRunner.
-macOS dependencies: brew install cmake pkg-config glfw glew glm
-CMake dependencies: OpenGL, GLFW >= 3.3, GLEW, GLM.
+macOS dependencies: brew install cmake pkg-config freeglut glew glm
+CMake dependencies: OpenGL, freeglut, GLEW, GLM.
+Windows: install them with vcpkg (freeglut, glew, glm) and configure CMake with the vcpkg toolchain file.
 CMake copies shaders into build/ on each build. The build stores their absolute
 location, so the executable can be launched from another working directory.
 Reconfigure/rebuild if moving the project or build directory.
@@ -45,11 +46,11 @@ The binary loads shaders/ at start-up, so run it from the project root
 
 Required packages, Arch:
 
-    sudo pacman -S base-devel glfw glew glm mesa
+    sudo pacman -S base-devel freeglut glew glm mesa
 
 Debian/Ubuntu:
 
-    sudo apt install build-essential libglfw3-dev libglew-dev libglm-dev
+    sudo apt install build-essential freeglut3-dev libglew-dev libglm-dev
 
 Command-line flags (used for the screenshots and for smoke testing):
 
@@ -134,7 +135,8 @@ street lamps nearest the car.
 7. Engine notes
 ---------------
 
-  engine/window.*    GLFW context, framebuffer resize, frame clock, key
+  engine/window.*    freeglut context and callbacks (keyboard, special keys,
+                     reshape, close), frame clock, key
                      edge detection, PPM screenshots
   engine/shader.*    compile/link with readable errors, uniform location
                      cache, asset lookup that also works from build/
@@ -213,7 +215,7 @@ shot.png`).
 10. Third-party code and assets
 -------------------------------
 
-Libraries (linked, not bundled): GLFW (zlib/libpng licence), GLEW (Modified BSD
+Libraries (linked, not bundled): freeglut (X-Consortium licence), GLEW (Modified BSD
 and MIT licences), GLM (MIT licence). There are no third-party models, textures
 or shaders: every texture and shader in this repository is written for this
 project.
@@ -226,5 +228,5 @@ Input edges are handled once per rendered frame. Pausing clears accumulated
 time; long stalls are capped at 0.1 s to bound catch-up work. Collision shapes
 remain conservative axis-aligned bounds of rotated cars (not full rigid bodies
 or continuous collision detection).
-The frame clock uses double precision. GLFW key polling uses only valid key
-codes. Sky and moon transitions use ascending smoothstep bounds.
+The frame clock uses double precision. Keys arrive through freeglut callbacks and
+are mapped to engine::Key values. Sky and moon transitions use ascending smoothstep bounds.

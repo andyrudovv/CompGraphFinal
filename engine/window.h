@@ -3,42 +3,56 @@
 
 #include <string>
 
-struct GLFWwindow;
-
 namespace engine {
 
-// Owns the GLFW/GLEW context, the frame clock and the keyboard state.
+// Keys the game cares about. The window maps freeglut's keyboard events
+// (ASCII keys and special keys) onto these values, so the game code does not
+// depend on any windowing library.
+enum Key {
+    KeyEscape, KeyLeft, KeyRight, KeyUp, KeyDown, KeyF2,
+    KeyW, KeyA, KeyS, KeyD, KeyP, KeyR,
+    Key1, Key2, Key3, Key4,
+    KeyCount
+};
+
+// Owns the freeglut/GLEW context, the frame clock and the keyboard state.
+// Input arrives through freeglut callbacks (keyboard, special, reshape, close);
+// beginFrame() lets freeglut process pending events with glutMainLoopEvent().
 class Window {
 public:
     Window() = default;
     ~Window();
 
     bool create(int width, int height, const std::string& title);
-    bool shouldClose() const;
-    void close();
+    bool shouldClose() const { return closing_; }
+    void close() { closing_ = true; }
 
-    void beginFrame();  // poll events, advance the clock, latch key edges
+    void beginFrame();  // process events (callbacks), advance the clock
     void endFrame();    // swap buffers
 
     bool keyDown(int key) const;     // held this frame
     bool keyPressed(int key) const;  // went down on this frame only
 
     float dt() const { return dt_; }
-    float time() const { return time_; }
+    float time() const { return static_cast<float>(time_); }
     int width() const { return width_; }
     int height() const { return height_; }
     float aspect() const;
     void setTitle(const std::string& title);
 
-private:
-    static const int KEY_COUNT = 512;
+    // Called by the freeglut callbacks (see window.cpp).
+    void onKey(int key, bool down);
+    void onReshape(int width, int height);
+    void onClose();
 
-    GLFWwindow* handle_ = nullptr;
+private:
+    int id_ = 0;  // freeglut window id, 0 = no window
+    bool closing_ = false;
     int width_ = 0, height_ = 0;
     double time_ = 0.0, last_ = 0.0;
     float dt_ = 0.0f;
-    bool curr_[KEY_COUNT] = {};
-    bool prev_[KEY_COUNT] = {};
+    bool down_[KeyCount] = {};     // currently held
+    bool pressed_[KeyCount] = {};  // went down since the previous beginFrame()
 };
 
 // Grabs the back framebuffer into a binary PPM (handy for the report).

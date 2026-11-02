@@ -3,8 +3,7 @@
 #include <cstring>
 #include <string>
 
-#include "game.h"       // pulls in GLEW, which must come before GLFW
-#include <GLFW/glfw3.h>
+#include "game.h"       // pulls in GLEW and the engine (window, keys)
 
 int main(int argc, char** argv) {
     int frameLimit = 0;          // --frames N: quit after N frames (smoke test)
@@ -33,7 +32,7 @@ int main(int argc, char** argv) {
         game.update(window);
         game.render(window);
 
-        if (window.keyPressed(GLFW_KEY_F2)) {
+        if (window.keyPressed(engine::KeyF2)) {
             engine::saveScreenshot("screenshot.ppm", window.width(), window.height());
         }
         if (frameLimit > 0 && ++frame >= frameLimit) {
