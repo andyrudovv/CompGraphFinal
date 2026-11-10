@@ -36,6 +36,17 @@ namespace game {
         float hitTimer = 0.0f; // > 0: a fresh impact, no new sparks/debris yet (stops spam)
     };
 
+    // Transform tree of one car: body -> (trim, wheels, lamps, tail lights). The pointers
+    // point into root.children, so a rig must never be copied after it is built.
+    struct CarRig {
+        engine::Node root;
+        engine::Node* cargo = nullptr;       // trucks only
+        engine::Node* wheels[4] = {};        // null when a loaded model brings its own wheels
+        glm::vec3 wheelPos[4];
+        engine::Node* lamps[2] = {};
+        engine::Node* tail = nullptr;
+    };
+
     struct Prop {
         enum Type { Lamp, Tree, Building } type = Tree;
         float x = 0.0f;
@@ -98,7 +109,10 @@ namespace game {
             float wheelAngle);
         void drawTruck(const glm::mat4& model, const glm::vec3& color, float headlights,
             float taillights, float wheelAngle);
-        void drawWheels(const glm::mat4& model, float angle, float zFront, float zRear, float x);
+        void buildRigs();
+        void poseRig(CarRig& rig, const glm::mat4& model, const glm::vec3& color, float headlights,
+            float taillights, float wheelAngle);
+        glm::mat4 playerMatrix() const;
         void drawHud(engine::Window& window);
         float randRange(float a, float b);
         int difficultyLevel() const;
@@ -109,9 +123,10 @@ namespace game {
         engine::Environment env_;
 
         engine::Mesh ground_, road_, dash_, curb_;
-        engine::Mesh carBody_, carTrim_, carHead_, carTail_, wheel_, playerKit_;
+        engine::Mesh carBody_, carTrim_, headlamp_, carTail_, wheel_, playerKit_;
         engine::Mesh truckCab_, truckCargo_, truckTrim_;
         engine::Mesh spark_, shard_;
+        CarRig sedanRig_, truckRig_;
 
         // Optional downloaded models (models/car.obj, models/truck.obj). When a file is
         // missing the procedural box cars are used, so the game always runs.
