@@ -35,6 +35,7 @@ int mapAscii(unsigned char c) {
     case 'd': return KeyD;
     case 'p': return KeyP;
     case 'r': return KeyR;
+    case 'b': return KeyB;
     case '1': return Key1;
     case '2': return Key2;
     case '3': return Key3;

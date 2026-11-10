@@ -1,6 +1,7 @@
 #version 330 core
 
 #define MAX_POINT_LIGHTS 8
+#define MAX_SPOT_LIGHTS 4
 
 in vec3 vWorldPos;
 in vec3 vNormal;
@@ -33,6 +34,14 @@ uniform int uPointCount;
 uniform vec3 uPointPos[MAX_POINT_LIGHTS];
 uniform vec3 uPointColor[MAX_POINT_LIGHTS];
 uniform float uPointRange[MAX_POINT_LIGHTS];
+
+uniform int uSpotCount;
+uniform vec3 uSpotPos[MAX_SPOT_LIGHTS];
+uniform vec3 uSpotDir[MAX_SPOT_LIGHTS];  // unit length, set by the renderer
+uniform vec3 uSpotColor[MAX_SPOT_LIGHTS];
+uniform float uSpotRange[MAX_SPOT_LIGHTS];
+uniform float uSpotCosInner[MAX_SPOT_LIGHTS];
+uniform float uSpotCosOuter[MAX_SPOT_LIGHTS];
 
 uniform vec3 uFogColor;
 uniform float uFogDensity;
@@ -68,6 +77,22 @@ void main() {
         if (nl > 0.0) {
             vec3 H = normalize(L + V);
             lit += uPointColor[i] * uSpecular * pow(max(dot(N, H), 0.0), uShininess) * att;
+        }
+    }
+
+    for (int i = 0; i < uSpotCount; ++i) {
+        vec3 delta = uSpotPos[i] - vWorldPos;
+        float dist = length(delta);
+        vec3 L = delta / max(dist, 0.0001);
+        // Cone falloff on the angle between the beam axis and the light-to-fragment ray.
+        float cone = smoothstep(uSpotCosOuter[i], uSpotCosInner[i], dot(-L, uSpotDir[i]));
+        float att = clamp(1.0 - dist / uSpotRange[i], 0.0, 1.0);
+        att *= att * cone;
+        float nl = max(dot(N, L), 0.0);
+        lit += uSpotColor[i] * albedo * nl * att;
+        if (nl > 0.0) {
+            vec3 H = normalize(L + V);
+            lit += uSpotColor[i] * uSpecular * pow(max(dot(N, H), 0.0), uShininess) * att;
         }
     }
 

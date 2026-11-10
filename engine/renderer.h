@@ -40,6 +40,18 @@ struct PointLight {
     float range = 20.0f;
 };
 
+// Keep in sync with MAX_SPOT_LIGHTS in shaders/scene.frag.
+const int MAX_SPOT_LIGHTS = 4;
+
+struct SpotLight {
+    glm::vec3 position{0.0f};
+    glm::vec3 direction{0.0f, 0.0f, -1.0f};
+    glm::vec3 color{1.0f};
+    float range = 40.0f;
+    float innerAngle = 0.26f;  // radians, full intensity inside
+    float outerAngle = 0.55f;  // radians, zero intensity outside
+};
+
 // Everything the scene shader needs besides the geometry itself.
 struct Environment {
     glm::vec3 sunDirection{0.0f, 1.0f, 0.0f};  // astronomical sun, drives the sky disc
@@ -54,6 +66,7 @@ struct Environment {
     glm::vec3 groundColor{0.15f, 0.16f, 0.14f};
     float night = 0.0f;  // 0 day .. 1 night, drives stars and the moon
     std::vector<PointLight> pointLights;
+    std::vector<SpotLight> spotLights;
 };
 
 class Renderer {

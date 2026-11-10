@@ -10,7 +10,7 @@ namespace engine {
 // depend on any windowing library.
 enum Key {
     KeyEscape, KeyLeft, KeyRight, KeyUp, KeyDown, KeyF2,
-    KeyW, KeyA, KeyS, KeyD, KeyP, KeyR,
+    KeyW, KeyA, KeyS, KeyD, KeyP, KeyR, KeyB,
     Key1, Key2, Key3, Key4,
     KeyCount
 };
