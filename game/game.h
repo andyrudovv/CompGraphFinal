@@ -155,6 +155,7 @@ namespace game {
         float crashFlash_ = 0.0f;
         float shakeTime_ = 0.0f;   // camera shake, 1 -> 0
         bool paused_ = false;
+        bool showHelp_ = false;
         bool dayCycle_ = true;
         double accumulator_ = 0.0;
 

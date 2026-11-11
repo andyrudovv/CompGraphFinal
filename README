@@ -64,6 +64,7 @@ Command-line flags (used for the screenshots and for smoke testing):
     Left / Right  (or A / D)   change lane
     Up            (or W)       accelerate
     Down          (or S)       brake
+    F1 / H                     show / hide controls and pause while open
     C                          cycle chase -> free-fly -> orbit -> chase
     In free-fly mode:
       I / K, J / L             fly forward/backward, strafe left/right
@@ -85,7 +86,7 @@ Command-line flags (used for the screenshots and for smoke testing):
     3                          fixed night
     4                          toggle automatic day/night cycle
     F2                         save screenshot.ppm
-    ESC                        quit
+    Esc                        quit
 
 
 4. The HUD
@@ -98,8 +99,8 @@ Command-line flags (used for the screenshots and for smoke testing):
     on a crash    final score, best score of the session, blinking strip
                   meaning "press R"
 
-The HUD has no font: digits are drawn as seven-segment glyphs made of
-rectangles, which keeps the HUD free of any font or image dependency.
+The HUD uses seven-segment numbers and a built-in 5x7 bitmap font for the
+F1/H controls panel. Closing help restores the previous pause state. No external font or image dependency is required.
 
 
 5. Game rules

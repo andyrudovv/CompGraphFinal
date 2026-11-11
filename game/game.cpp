@@ -353,6 +353,7 @@ namespace game {
     }
 
     void Game::update(engine::Window& window) {
+        if (window.keyPressed(GLFW_KEY_F1) || window.keyPressed(GLFW_KEY_H)) showHelp_ = !showHelp_;
         // C cycles chase -> free-fly -> orbit -> chase. Free flight starts from the current view.
         if (window.keyPressed(GLFW_KEY_C)) {
             if (cameraMode_ == CameraMode::Chase) {
@@ -376,23 +377,24 @@ namespace game {
 
 
         if (window.keyPressed(GLFW_KEY_ESCAPE)) window.close();
-        if (window.keyPressed(GLFW_KEY_P)) paused_ = !paused_;
-        if (window.keyPressed(GLFW_KEY_R)) {
+        if (!showHelp_ && window.keyPressed(GLFW_KEY_P)) paused_ = !paused_;
+        if (!showHelp_ && window.keyPressed(GLFW_KEY_R)) {
             best_ = std::max(best_, score_);
             reset();
         }
 
-        if (!paused_ && state_ == State::Playing &&
+        const bool gamePaused = paused_ || showHelp_;
+        if (!gamePaused && state_ == State::Playing &&
             (window.keyPressed(GLFW_KEY_LEFT) || window.keyPressed(GLFW_KEY_A))) {
             playerLane_ = std::max(playerLane_ - 1, 0);
         }
-        if (!paused_ && state_ == State::Playing &&
+        if (!gamePaused && state_ == State::Playing &&
             (window.keyPressed(GLFW_KEY_RIGHT) || window.keyPressed(GLFW_KEY_D))) {
             playerLane_ = std::min(playerLane_ + 1, LANE_COUNT - 1);
         }
 
         constexpr double STEP = 1.0 / 120.0;
-        if (paused_) accumulator_ = 0.0;
+        if (paused_ || showHelp_) accumulator_ = 0.0;
         else accumulator_ += window.dt();
         while (accumulator_ >= STEP) {
             accumulator_ -= STEP;
@@ -1285,6 +1287,50 @@ namespace game {
             hud_.rect(w * 0.5f + 12.0f, h * 0.45f, 22.0f, 70.0f, white);
         }
 
+        // Scale the help panel with the framebuffer, including Retina displays.
+        const float ui = std::min(w / 1200.0f, h / 680.0f);
+        if (showHelp_) {
+            const float panelW = 1120.0f * ui, panelH = 550.0f * ui;
+            const float left = (w - panelW) * 0.5f, top = (h - panelH) * 0.5f;
+            hud_.rect(0, 0, w, h, glm::vec4(0, 0, 0, 0.45f));
+            hud_.rect(left, top, panelW, panelH, glm::vec4(0.03f, 0.05f, 0.09f, 0.97f));
+            hud_.rect(left, top, panelW, 4 * ui, amber);
+            auto line = [&](float x, float y, const char* text, const glm::vec4& color) {
+                hud_.text(left + x * ui, top + y * ui, 2 * ui, text, color);
+            };
+            line(28, 24, "PAUSED - F1 / H TO CLOSE CONTROLS", amber);
+            const char* mode = cameraMode_ == CameraMode::Free ? "CAMERA: FREE-FLY"
+                : cameraMode_ == CameraMode::Orbit ? "CAMERA: ORBIT" : "CAMERA: CHASE";
+            line(28, 58, mode, white);
+            line(28, 106, "DRIVING - ALL CAMERA MODES", amber);
+            line(28, 140, "A/D OR LEFT/RIGHT - CHANGE LANE", white);
+            line(28, 170, "W OR UP - ACCELERATE", white);
+            line(28, 200, "S OR DOWN - BRAKE", white);
+            line(28, 240, "GENERAL", amber);
+            line(28, 274, "C - CHASE > FREE-FLY > ORBIT", white);
+            line(28, 304, "P - PAUSE / RESUME", white);
+            line(28, 334, "R - RESTART    ESC - QUIT", white);
+            line(28, 364, "F2 - SAVE SCREENSHOT.PPM", white);
+            line(28, 404, "LIGHTING", amber);
+            line(28, 438, "1 - DAY  2 - SUNSET  3 - NIGHT", white);
+            line(28, 468, "4 - TOGGLE DAY/NIGHT CYCLE", white);
+            line(590, 106, "FREE-FLY CAMERA", amber);
+            line(590, 140, "I/K - FLY FORWARD / BACKWARD", white);
+            line(590, 170, "J/L - FLY LEFT / RIGHT", white);
+            line(590, 200, "Q/E - DOWN / UP", white);
+            line(590, 230, "SHIFT - FASTER FLIGHT", white);
+            line(590, 260, "MOUSE WHEEL - FORWARD / BACKWARD", white);
+            line(590, 290, "HOLD LEFT/RIGHT MOUSE - LOOK", white);
+            line(590, 330, "ORBIT CAMERA", amber);
+            line(590, 364, "HOLD LEFT/RIGHT MOUSE - ROTATE", white);
+            line(590, 394, "Q/E - ROTATE AROUND CAR", white);
+            line(590, 424, "WHEEL OR Z/X - ZOOM IN / OUT", white);
+            line(590, 468, "P TO PAUSE WHILE EXPLORING", white);
+            line(28, 516, "GAME PAUSED. F1 / H CLOSES HELP.", amber);
+        } else {
+            hud_.rect(12 * ui, h - 34 * ui, 220 * ui, 26 * ui, glm::vec4(0, 0, 0, 0.65f));
+            hud_.text(20 * ui, h - 28 * ui, 2 * ui, "F1 / H - CONTROLS", white);
+        }
         hud_.end();
     }
 

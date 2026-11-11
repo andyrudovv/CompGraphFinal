@@ -1,5 +1,8 @@
 #include "hud.h"
 
+#include <cctype>
+#include <vector>
+
 namespace engine {
 
 // Seven-segment masks for 0..9, bit order a,b,c,d,e,f,g.
@@ -17,11 +20,19 @@ bool Hud::init() {
     glBufferData(GL_ARRAY_BUFFER, sizeof(quad), quad, GL_STATIC_DRAW);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
+    glGenVertexArrays(1, &textVao_);
+    glGenBuffers(1, &textVbo_);
+    glBindVertexArray(textVao_);
+    glBindBuffer(GL_ARRAY_BUFFER, textVbo_);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
     glBindVertexArray(0);
     return true;
 }
 
 Hud::~Hud() {
+    if (textVbo_) glDeleteBuffers(1, &textVbo_);
+    if (textVao_) glDeleteVertexArrays(1, &textVao_);
     if (vbo_) glDeleteBuffers(1, &vbo_);
     if (vao_) glDeleteVertexArrays(1, &vao_);
 }
@@ -48,6 +59,64 @@ void Hud::rect(float x, float y, float w, float h, const glm::vec4& color) {
     shader_.setVec4("uRect", glm::vec4(x, y, w, h));
     shader_.setVec4("uColor", color);
     glDrawArrays(GL_TRIANGLES, 0, 6);
+}
+
+// Five by seven uppercase glyphs, drawn as a single batch per text line.
+void Hud::text(float x, float y, float scale, const std::string& value, const glm::vec4& color) {
+    struct Glyph { char letter; unsigned char rows[7]; };
+    static const Glyph font[] = {
+        {'A',{14,17,17,31,17,17,17}}, {'B',{30,17,17,30,17,17,30}},
+        {'C',{14,17,16,16,16,17,14}}, {'D',{30,17,17,17,17,17,30}},
+        {'E',{31,16,16,30,16,16,31}}, {'F',{31,16,16,30,16,16,16}},
+        {'G',{14,17,16,23,17,17,15}}, {'H',{17,17,17,31,17,17,17}},
+        {'I',{14,4,4,4,4,4,14}}, {'J',{7,2,2,2,18,18,12}},
+        {'K',{17,18,20,24,20,18,17}}, {'L',{16,16,16,16,16,16,31}},
+        {'M',{17,27,21,21,17,17,17}}, {'N',{17,25,21,19,17,17,17}},
+        {'O',{14,17,17,17,17,17,14}}, {'P',{30,17,17,30,16,16,16}},
+        {'Q',{14,17,17,17,21,18,13}}, {'R',{30,17,17,30,20,18,17}},
+        {'S',{15,16,16,14,1,1,30}}, {'T',{31,4,4,4,4,4,4}},
+        {'U',{17,17,17,17,17,17,14}}, {'V',{17,17,17,17,17,10,4}},
+        {'W',{17,17,17,21,21,21,10}}, {'X',{17,17,10,4,10,17,17}},
+        {'Y',{17,17,10,4,4,4,4}}, {'Z',{31,1,2,4,8,16,31}},
+        {'0',{14,17,19,21,25,17,14}}, {'1',{4,12,4,4,4,4,14}},
+        {'2',{14,17,1,2,4,8,31}}, {'3',{30,1,1,14,1,1,30}},
+        {'4',{2,6,10,18,31,2,2}}, {'5',{31,16,16,30,1,1,30}},
+        {'6',{14,16,16,30,17,17,14}}, {'7',{31,1,2,4,8,8,8}},
+        {'8',{14,17,17,14,17,17,14}}, {'9',{14,17,17,15,1,1,14}},
+        {'/',{1,2,2,4,8,8,16}}, {'-',{0,0,0,31,0,0,0}},
+        {':',{0,4,4,0,4,4,0}}, {'.',{0,0,0,0,0,4,4}},
+        {'>',{16,8,4,2,4,8,16}}, {'+',{0,4,4,31,4,4,0}},
+        {'(',{2,4,8,8,8,4,2}}, {')',{8,4,2,2,2,4,8}},
+        {'?',{14,17,1,2,4,0,4}}
+    };
+    std::vector<float> vertices;
+    for (unsigned char raw : value) {
+        char c = static_cast<char>(std::toupper(raw));
+        if (c != ' ') {
+            const Glyph* glyph = &font[sizeof(font) / sizeof(font[0]) - 1];
+            for (const Glyph& candidate : font) {
+                if (candidate.letter == c) { glyph = &candidate; break; }
+            }
+            for (int row = 0; row < 7; ++row) {
+                for (int col = 0; col < 5; ++col) {
+                    if (!(glyph->rows[row] & (1 << (4 - col)))) continue;
+                    float left = x + col * scale, top = y + row * scale;
+                    float right = left + scale, bottom = top + scale;
+                    vertices.insert(vertices.end(), {left,top, right,top, right,bottom,
+                        left,top, right,bottom, left,bottom});
+                }
+            }
+        }
+        x += 6.0f * scale;
+    }
+    if (vertices.empty()) return;
+    shader_.setVec4("uRect", glm::vec4(0, 0, 1, 1));
+    shader_.setVec4("uColor", color);
+    glBindVertexArray(textVao_);
+    glBindBuffer(GL_ARRAY_BUFFER, textVbo_);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STREAM_DRAW);
+    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(vertices.size() / 2));
+    glBindVertexArray(vao_);
 }
 
 void Hud::bar(float x, float y, float w, float h, float fill, const glm::vec4& color) {
