@@ -3,6 +3,7 @@
 #include <glm/gtc/matrix_inverse.hpp>
 
 #include <algorithm>
+#include <cmath>
 
 namespace engine {
 
@@ -42,6 +43,30 @@ void Renderer::beginFrame(const Camera& camera, const Environment& env) {
     scene_.setVec3Array("uPointPos", positions, count);
     scene_.setVec3Array("uPointColor", colors, count);
     scene_.setFloatArray("uPointRange", ranges, count);
+
+    int spots = std::min<int>(static_cast<int>(env_.spotLights.size()), MAX_SPOT_LIGHTS);
+    glm::vec3 spotPos[MAX_SPOT_LIGHTS];
+    glm::vec3 spotDir[MAX_SPOT_LIGHTS];
+    glm::vec3 spotColor[MAX_SPOT_LIGHTS];
+    float spotRange[MAX_SPOT_LIGHTS];
+    float spotCosInner[MAX_SPOT_LIGHTS];
+    float spotCosOuter[MAX_SPOT_LIGHTS];
+    for (int i = 0; i < spots; ++i) {
+        const SpotLight& s = env_.spotLights[i];
+        spotPos[i] = s.position;
+        spotDir[i] = glm::normalize(s.direction);
+        spotColor[i] = s.color;
+        spotRange[i] = std::max(s.range, 0.01f);
+        spotCosInner[i] = std::cos(s.innerAngle);
+        spotCosOuter[i] = std::cos(s.outerAngle);
+    }
+    scene_.setInt("uSpotCount", spots);
+    scene_.setVec3Array("uSpotPos", spotPos, spots);
+    scene_.setVec3Array("uSpotDir", spotDir, spots);
+    scene_.setVec3Array("uSpotColor", spotColor, spots);
+    scene_.setFloatArray("uSpotRange", spotRange, spots);
+    scene_.setFloatArray("uSpotCosInner", spotCosInner, spots);
+    scene_.setFloatArray("uSpotCosOuter", spotCosOuter, spots);
 }
 
 void Renderer::drawSky() {

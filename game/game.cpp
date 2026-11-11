@@ -93,6 +93,7 @@ namespace game {
         truckModel_ = engine::loadObjModel("models/truck.obj", truckOpt, truckModelPaint_,
             truckModelRest_);
 
+        buildRigs();
         buildProps();
         reset();
         return true;
@@ -207,11 +208,8 @@ namespace game {
         b.build(carTrim_);
 
         b.clear();
-        for (int sx = -1; sx <= 1; sx += 2) {
-            b.box(glm::translate(I, glm::vec3(sx * 0.62f, 0.62f, -2.22f)),
-                glm::vec3(0.42f, 0.22f, 0.08f), glm::vec3(1.0f));
-        }
-        b.build(carHead_);
+        b.box(I, glm::vec3(0.42f, 0.22f, 0.08f), glm::vec3(1.0f));
+        b.build(headlamp_);
 
         b.clear();
         for (int sx = -1; sx <= 1; sx += 2) {
@@ -432,6 +430,7 @@ namespace game {
             updateDayNight(dayCycle_ ? dt : 0.0f);
         }
         updateDayNight(0.0f);
+        sedanRig_.root.updateWorld(playerMatrix());  // the headlight spots follow the car
         collectLights();
 
         // Chase camera: it leans with the lane change and drifts back when quick.
@@ -970,15 +969,19 @@ namespace game {
 
     void Game::collectLights() {
         env_.pointLights.clear();
+        env_.spotLights.clear();
         float lightsOn = glm::smoothstep(0.25f, 0.65f, night_);
         if (lightsOn <= 0.01f) return;
 
-        for (int s = -1; s <= 1; s += 2) {
-            engine::PointLight head;
-            head.position = glm::vec3(playerX_ + s * 0.62f, 0.7f, -3.2f);
-            head.color = glm::vec3(1.0f, 0.93f, 0.78f) * (1.5f * lightsOn);
-            head.range = 26.0f;
-            env_.pointLights.push_back(head);
+        // Beam axis in the lamp's frame: forward is -Z, tilted down so the cone meets the road.
+        const glm::vec3 beamAxis(0.0f, -0.16f, -1.0f);
+        for (const engine::Node* lamp : sedanRig_.lamps) {
+            engine::SpotLight head;
+            head.position = glm::vec3(lamp->world() * glm::vec4(0.0f, 0.0f, -0.05f, 1.0f));
+            head.direction = glm::mat3(lamp->world()) * beamAxis;
+            head.color = glm::vec3(1.0f, 0.93f, 0.78f) * (12.0f * lightsOn);
+            head.range = 46.0f;
+            env_.spotLights.push_back(head);
         }
 
         // Only the lamps around the car can matter; the shader takes eight lights total.
@@ -990,7 +993,7 @@ namespace game {
             return std::fabs(a->z + 18.0f) < std::fabs(b->z + 18.0f);
             });
 
-        int count = std::min<int>(static_cast<int>(lamps.size()), engine::MAX_POINT_LIGHTS - 2);
+        int count = std::min<int>(static_cast<int>(lamps.size()), engine::MAX_POINT_LIGHTS);
         for (int i = 0; i < count; ++i) {
             engine::PointLight lamp;
             float side = lamps[i]->x > 0.0f ? 1.0f : -1.0f;
@@ -1001,89 +1004,110 @@ namespace game {
         }
     }
 
-    // Four wheels that roll around X. Forward is -Z, so a forward roll is a negative angle.
-    void Game::drawWheels(const glm::mat4& model, float angle, float zFront, float zRear, float x) {
-        engine::Material m;
-        m.specular = 0.3f;
-        m.shininess = 32.0f;
-        const float zs[2] = { zFront, zRear };
-        for (int sx = -1; sx <= 1; sx += 2) {
-            for (float z : zs) {
-                glm::mat4 w = glm::translate(model, glm::vec3(sx * x, WHEEL_RADIUS, z));
-                w = glm::rotate(w, -angle, glm::vec3(1.0f, 0.0f, 0.0f));
-                renderer_.draw(wheel_, w, m);
+    // Forward is -Z, so a forward roll is a negative angle around X.
+    void Game::buildRigs() {
+        const glm::mat4 I(1.0f);
+        engine::Material trim;
+        trim.specular = 0.2f;
+        engine::Material wheel;
+        wheel.specular = 0.3f;
+        engine::Material lamp;
+        lamp.tint = glm::vec3(1.0f, 0.95f, 0.82f);
+        engine::Material tail;
+        tail.tint = glm::vec3(1.0f, 0.18f, 0.12f);
+
+        auto node = [](const engine::Mesh* mesh, const engine::Material& m, const glm::mat4& local) {
+            engine::Node n;
+            n.mesh = mesh;
+            n.material = m;
+            n.local = local;
+            return n;
+        };
+
+        // Child order is body parts, wheels, lamps, tail: the pointers are taken at the end,
+        // once the vector no longer grows.
+        auto finish = [&](CarRig& rig, int parts, bool ownWheels, float wheelX, float zFront,
+                          float zRear, float lampZ, float tailZ) {
+            std::vector<engine::Node>& kids = rig.root.children;
+            int i = 0;
+            for (int sx = -1; sx <= 1 && ownWheels; sx += 2) {
+                for (float z : { zFront, zRear }) {
+                    rig.wheelPos[i++] = glm::vec3(sx * wheelX, WHEEL_RADIUS, z);
+                    kids.push_back(node(&wheel_, wheel, glm::translate(I, rig.wheelPos[i - 1])));
+                }
             }
+            for (int sx = -1; sx <= 1; sx += 2) {
+                kids.push_back(node(&headlamp_, lamp,
+                    glm::translate(I, glm::vec3(sx * 0.62f, 0.62f, lampZ))));
+            }
+            kids.push_back(node(&carTail_, tail, glm::translate(I, glm::vec3(0.0f, 0.0f, tailZ))));
+
+            int at = parts;
+            for (engine::Node*& w : rig.wheels) w = ownWheels ? &kids[at++] : nullptr;
+            rig.lamps[0] = &kids[at++];
+            rig.lamps[1] = &kids[at++];
+            rig.tail = &kids[at];
+        };
+
+        CarRig& car = sedanRig_;
+        car.root = engine::Node();
+        car.root.mesh = carModel_ ? &carModelPaint_ : &carBody_;  // painted with the car colour
+        car.root.children.push_back(node(carModel_ ? &carModelRest_ : &carTrim_, trim, I));
+        finish(car, 1, !carModel_, 0.92f, -1.35f, 1.35f, -2.22f, 0.0f);
+
+        // The sedan's light meshes are reused, moved to the truck's front and rear faces.
+        CarRig& truck = truckRig_;
+        truck.root = engine::Node();
+        truck.root.mesh = truckModel_ ? &truckModelPaint_ : &truckCab_;
+        if (truckModel_) {
+            truck.root.children.push_back(node(&truckModelRest_, trim, I));
+            finish(truck, 1, false, 1.02f, -2.2f, 2.2f, -3.10f, 0.88f);
+        } else {
+            truck.root.children.push_back(node(&truckCargo_, engine::Material(), I));
+            truck.root.children.push_back(node(&truckTrim_, trim, I));
+            finish(truck, 2, true, 1.02f, -2.2f, 2.2f, -3.10f, 0.88f);
+            truck.cargo = &truck.root.children[0];
         }
+    }
+
+    // Sets the per-car state on the tree and refreshes all world matrices.
+    void Game::poseRig(CarRig& rig, const glm::mat4& model, const glm::vec3& color,
+        float headlights, float taillights, float wheelAngle) {
+        rig.root.material.tint = color;
+        if (rig.cargo) {
+            rig.cargo->material.tint = glm::mix(glm::vec3(0.82f), color, 0.15f);
+            rig.cargo->material.specular = 0.15f;
+        }
+        for (int i = 0; i < 4; ++i) {
+            if (!rig.wheels[i]) continue;
+            rig.wheels[i]->local = glm::rotate(glm::translate(glm::mat4(1.0f), rig.wheelPos[i]),
+                -wheelAngle, glm::vec3(1.0f, 0.0f, 0.0f));
+        }
+        for (engine::Node* l : rig.lamps) l->material.emissive = headlights;
+        rig.tail->material.emissive = taillights;
+        rig.root.updateWorld(model);
     }
 
     void Game::drawCar(const glm::mat4& model, const glm::vec3& color, float headlights,
         float taillights, float wheelAngle) {
-        engine::Material body;
-        body.tint = color;
-        body.specular = 0.55f;
-        body.shininess = 64.0f;
-        engine::Material trim;
-        trim.specular = 0.2f;
-
-        if (carModel_) {
-            renderer_.draw(carModelPaint_, model, body);  // tinted with the car colour
-            renderer_.draw(carModelRest_, model, trim);   // keeps the colours from the .mtl
-        }
-        else {
-            renderer_.draw(carBody_, model, body);
-            renderer_.draw(carTrim_, model, trim);
-        }
-
-        engine::Material head;
-        head.tint = glm::vec3(1.0f, 0.95f, 0.82f);
-        head.emissive = headlights;
-        renderer_.draw(carHead_, model, head);
-
-        engine::Material tail;
-        tail.tint = glm::vec3(1.0f, 0.18f, 0.12f);
-        tail.emissive = taillights;
-        renderer_.draw(carTail_, model, tail);
-
-        // Downloaded models come with their own (non-spinning) wheels.
-        if (!carModel_) drawWheels(model, wheelAngle, -1.35f, 1.35f, 0.92f);
+        sedanRig_.root.material.specular = 0.55f;
+        sedanRig_.root.material.shininess = 64.0f;
+        poseRig(sedanRig_, model, color, headlights, taillights, wheelAngle);
+        sedanRig_.root.draw(renderer_);
     }
 
     void Game::drawTruck(const glm::mat4& model, const glm::vec3& color, float headlights,
         float taillights, float wheelAngle) {
-        engine::Material cab;
-        cab.tint = color;
-        cab.specular = 0.5f;
-        cab.shininess = 48.0f;
-        engine::Material trim;
-        trim.specular = 0.2f;
+        truckRig_.root.material.specular = 0.5f;
+        truckRig_.root.material.shininess = 48.0f;
+        poseRig(truckRig_, model, color, headlights, taillights, wheelAngle);
+        truckRig_.root.draw(renderer_);
+    }
 
-        if (truckModel_) {
-            renderer_.draw(truckModelPaint_, model, cab);
-            renderer_.draw(truckModelRest_, model, trim);
-        }
-        else {
-            renderer_.draw(truckCab_, model, cab);
-
-            engine::Material cargo;
-            cargo.tint = glm::mix(glm::vec3(0.82f), color, 0.15f);
-            cargo.specular = 0.15f;
-            renderer_.draw(truckCargo_, model, cargo);
-
-            renderer_.draw(truckTrim_, model, trim);
-        }
-
-        // The sedan's light meshes are reused, moved to the truck's front and rear faces.
-        engine::Material head;
-        head.tint = glm::vec3(1.0f, 0.95f, 0.82f);
-        head.emissive = headlights;
-        renderer_.draw(carHead_, glm::translate(model, glm::vec3(0.0f, 0.0f, -0.88f)), head);
-
-        engine::Material tail;
-        tail.tint = glm::vec3(1.0f, 0.18f, 0.12f);
-        tail.emissive = taillights;
-        renderer_.draw(carTail_, glm::translate(model, glm::vec3(0.0f, 0.0f, 0.88f)), tail);
-
-        if (!truckModel_) drawWheels(model, wheelAngle, -2.2f, 2.2f, 1.02f);
+    glm::mat4 Game::playerMatrix() const {
+        glm::mat4 m = glm::translate(glm::mat4(1.0f), glm::vec3(playerX_, 0.0f, 0.0f));
+        m = glm::rotate(m, playerYaw_, glm::vec3(0.0f, 1.0f, 0.0f));
+        return glm::rotate(m, playerRoll_, glm::vec3(0.0f, 0.0f, 1.0f));
     }
 
     void Game::render(engine::Window& window) {
@@ -1177,9 +1201,7 @@ namespace game {
             else drawCar(model, car.color, head, tail, car.wheelAngle);
         }
 
-        glm::mat4 player = glm::translate(I, glm::vec3(playerX_, 0.0f, 0.0f));
-        player = glm::rotate(player, playerYaw_, glm::vec3(0.0f, 1.0f, 0.0f));
-        player = glm::rotate(player, playerRoll_, glm::vec3(0.0f, 0.0f, 1.0f));
+        glm::mat4 player = playerMatrix();
         float braking = window.keyDown(GLFW_KEY_DOWN) || window.keyDown(GLFW_KEY_S) ? 1.0f : 0.4f;
         if (state_ == State::Crashed) braking = hazard;
         drawCar(player, PLAYER_COLOR, glm::smoothstep(0.2f, 0.6f, night_), braking, wheelAngle_);
