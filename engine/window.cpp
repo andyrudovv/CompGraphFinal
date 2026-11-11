@@ -13,6 +13,10 @@ static void onResize(GLFWwindow* w, int width, int height) {
     (void)w;
 }
 
+static void onScroll(GLFWwindow* w, double, double dy) {
+    if (auto* self = static_cast<Window*>(glfwGetWindowUserPointer(w))) self->addScroll(dy);
+}
+
 Window::~Window() {
     if (handle_) glfwDestroyWindow(handle_);
     glfwTerminate();
@@ -42,6 +46,8 @@ bool Window::create(int width, int height, const std::string& title) {
     glfwMakeContextCurrent(handle_);
     glfwSwapInterval(1);
     glfwSetFramebufferSizeCallback(handle_, onResize);
+    glfwSetWindowUserPointer(handle_, this);
+    glfwSetScrollCallback(handle_, onScroll);
 
     glewExperimental = GL_TRUE;
     GLenum err = glewInit();
@@ -78,6 +84,23 @@ void Window::beginFrame() {
         prev_[k] = curr_[k];
         curr_[k] = glfwGetKey(handle_, k) == GLFW_PRESS;
     }
+
+    for (int b = 0; b < MOUSE_BUTTONS; ++b) {
+        mouse_[b] = glfwGetMouseButton(handle_, b) == GLFW_PRESS;
+    }
+    double cx = 0.0, cy = 0.0;
+    glfwGetCursorPos(handle_, &cx, &cy);
+    mouseDX_ = haveCursor_ ? static_cast<float>(cx - cursorX_) : 0.0f;
+    mouseDY_ = haveCursor_ ? static_cast<float>(cy - cursorY_) : 0.0f;
+    cursorX_ = cx;
+    cursorY_ = cy;
+    haveCursor_ = true;
+    scrollY_ = static_cast<float>(scrollPending_);
+    scrollPending_ = 0.0;
+}
+
+bool Window::mouseDown(int button) const {
+    return button >= 0 && button < MOUSE_BUTTONS && mouse_[button];
 }
 
 void Window::endFrame() { glfwSwapBuffers(handle_); }
