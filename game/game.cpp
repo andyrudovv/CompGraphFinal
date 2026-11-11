@@ -355,6 +355,17 @@ namespace game {
     }
 
     void Game::update(engine::Window& window) {
+        // Switch between the chase camera and free flight.
+        if (window.keyPressed(GLFW_KEY_C)) {
+            if (cameraMode_ == CameraMode::Chase) {
+                cameraMode_ = CameraMode::Free;
+                glm::vec3 forward = glm::normalize(camera_.target - camera_.position);
+                cameraYaw_ = std::atan2(forward.z, forward.x);
+                cameraPitch_ = std::asin(glm::clamp(forward.y, -1.0f, 1.0f));
+            } else {
+                cameraMode_ = CameraMode::Chase;
+            }
+        }
         // Input edges are consumed once per rendered frame, not per physics step.
         if (window.keyPressed(GLFW_KEY_1)) { setDayTime(0.25f); dayCycle_ = false; }
         if (window.keyPressed(GLFW_KEY_2)) { setDayTime(0.48f); dayCycle_ = false; }
@@ -424,11 +435,40 @@ namespace game {
         float shake = (state_ == State::Playing) ? std::sin(elapsed_ * 31.0f) * speed_ * 0.0015f : 0.0f;
         float hit = shakeTime_ * shakeTime_ * 0.45f;  // impact shake
         camera_.aspect = window.aspect();
-        camera_.position = glm::vec3(playerX_ * 0.45f + std::sin(t * 47.0f) * hit,
-            4.6f + shake + std::cos(t * 59.0f) * hit,
-            10.2f + speed_ * 0.045f);
-        camera_.target = glm::vec3(playerX_ * 0.75f, 1.35f, -14.0f);
-        camera_.fovDegrees = 60.0f + std::min(speed_, 70.0f) * 0.14f;
+        const bool dragging = window.mouseDown(GLFW_MOUSE_BUTTON_LEFT) || window.mouseDown(GLFW_MOUSE_BUTTON_RIGHT);
+        if (cameraMode_ == CameraMode::Chase) {
+            camera_.position = glm::vec3(playerX_ * 0.45f + std::sin(t * 47.0f) * hit,
+                4.6f + shake + std::cos(t * 59.0f) * hit,
+                10.2f + speed_ * 0.045f);
+            camera_.target = glm::vec3(playerX_ * 0.75f, 1.35f, -14.0f);
+            camera_.fovDegrees = 60.0f + std::min(speed_, 70.0f) * 0.14f;
+        }
+        else {
+            // Free-fly: hold a mouse button and move the mouse to look,
+            // IJKL fly, Q/E down/up, Shift is fast, the wheel flies forward/back.
+            // WASD and arrows remain available for driving.
+            const float dt = window.dt();
+            if (dragging) {
+                cameraYaw_ += window.mouseDX() * 0.0035f;
+                cameraPitch_ -= window.mouseDY() * 0.0035f;
+            }
+            cameraYaw_ = std::remainder(cameraYaw_, TWO_PI);
+            cameraPitch_ = glm::clamp(cameraPitch_, glm::radians(-89.0f), glm::radians(89.0f));
+            const glm::vec3 forward(std::cos(cameraPitch_) * std::cos(cameraYaw_),
+                std::sin(cameraPitch_), std::cos(cameraPitch_) * std::sin(cameraYaw_));
+            const glm::vec3 right = glm::normalize(glm::cross(forward, camera_.up));
+            glm::vec3 movement = forward * float(int(window.keyDown(GLFW_KEY_I)) - int(window.keyDown(GLFW_KEY_K)))
+                + right * float(int(window.keyDown(GLFW_KEY_L)) - int(window.keyDown(GLFW_KEY_J)))
+                + camera_.up * float(int(window.keyDown(GLFW_KEY_E)) - int(window.keyDown(GLFW_KEY_Q)));
+            if (glm::dot(movement, movement) > 0.0f) {
+                const bool fast = window.keyDown(GLFW_KEY_LEFT_SHIFT) || window.keyDown(GLFW_KEY_RIGHT_SHIFT);
+                camera_.position += glm::normalize(movement) * (fast ? 60.0f : 15.0f) * dt;
+            }
+            camera_.position += forward * window.scrollY() * 2.0f;
+            camera_.position.y = std::max(camera_.position.y, 0.3f);  // stay above the ground
+            camera_.target = camera_.position + forward;
+            camera_.fovDegrees = 60.0f;
+        }
     }
 
     void Game::updatePlayer(engine::Window& window, float dt) {
@@ -1150,7 +1190,10 @@ namespace game {
         }
 
         window.setTitle(std::string("Lane Runner | 1 Day  2 Sunset  3 Night  4 Cycle: ") +
-            (dayCycle_ ? "ON" : "OFF"));
+            (dayCycle_ ? "ON" : "OFF") +
+            (cameraMode_ == CameraMode::Free
+                ? " | FREE-FLY: IJKL fly, Q/E down/up, mouse drag look, wheel fly, Shift fast, WASD/arrows drive, C next camera"
+                : " | C Next camera"));
         drawHud(window);
     }
 

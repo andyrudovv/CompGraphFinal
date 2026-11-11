@@ -107,6 +107,11 @@ namespace game {
         engine::Hud hud_;
         engine::Camera camera_;
         engine::Environment env_;
+        enum class CameraMode { Chase, Free };
+        CameraMode cameraMode_ = CameraMode::Chase;
+        float cameraYaw_ = 0.0f;
+        float cameraPitch_ = 0.0f;
+
 
         engine::Mesh ground_, road_, dash_, curb_;
         engine::Mesh carBody_, carTrim_, carHead_, carTail_, wheel_, playerKit_;
