@@ -355,14 +355,18 @@ namespace game {
     }
 
     void Game::update(engine::Window& window) {
-        // Switch between the chase camera and free flight.
+        // C cycles chase -> free-fly -> orbit -> chase. Free flight starts from the current view.
         if (window.keyPressed(GLFW_KEY_C)) {
             if (cameraMode_ == CameraMode::Chase) {
                 cameraMode_ = CameraMode::Free;
                 glm::vec3 forward = glm::normalize(camera_.target - camera_.position);
                 cameraYaw_ = std::atan2(forward.z, forward.x);
                 cameraPitch_ = std::asin(glm::clamp(forward.y, -1.0f, 1.0f));
-            } else {
+            }
+            else if (cameraMode_ == CameraMode::Free) {
+                cameraMode_ = CameraMode::Orbit;
+            }
+            else {
                 cameraMode_ = CameraMode::Chase;
             }
         }
@@ -442,6 +446,26 @@ namespace game {
                 10.2f + speed_ * 0.045f);
             camera_.target = glm::vec3(playerX_ * 0.75f, 1.35f, -14.0f);
             camera_.fovDegrees = 60.0f + std::min(speed_, 70.0f) * 0.14f;
+        }
+        else if (cameraMode_ == CameraMode::Orbit) {
+            // Orbit around the car: drag with the mouse to rotate, wheel (or Z/X) to zoom,
+            // Q/E rotate from the keyboard. Driving keys keep working in this mode.
+            const float dt = window.dt();
+            if (dragging) {
+                orbitYaw_ -= window.mouseDX() * 0.006f;
+                orbitPitch_ += window.mouseDY() * 0.006f;
+            }
+            orbitYaw_ += glm::radians(80.0f) * dt * (int(window.keyDown(GLFW_KEY_Q)) - int(window.keyDown(GLFW_KEY_E)));
+            orbitYaw_ = std::remainder(orbitYaw_, TWO_PI);
+            orbitPitch_ = glm::clamp(orbitPitch_, 0.03f, glm::radians(85.0f));
+            orbitDist_ *= std::exp(-window.scrollY() * 0.1f);
+            orbitDist_ *= std::exp(dt * 1.2f * (int(window.keyDown(GLFW_KEY_X)) - int(window.keyDown(GLFW_KEY_Z))));
+            orbitDist_ = glm::clamp(orbitDist_, 3.5f, 60.0f);
+            const glm::vec3 center(playerX_, 1.0f, 0.0f);
+            camera_.target = center;
+            camera_.position = center + orbitDist_ * glm::vec3(std::cos(orbitPitch_) * std::sin(orbitYaw_),
+                std::sin(orbitPitch_), std::cos(orbitPitch_) * std::cos(orbitYaw_));
+            camera_.fovDegrees = 60.0f;
         }
         else {
             // Free-fly: hold a mouse button and move the mouse to look,
@@ -1193,6 +1217,8 @@ namespace game {
             (dayCycle_ ? "ON" : "OFF") +
             (cameraMode_ == CameraMode::Free
                 ? " | FREE-FLY: IJKL fly, Q/E down/up, mouse drag look, wheel fly, Shift fast, WASD/arrows drive, C next camera"
+                : cameraMode_ == CameraMode::Orbit
+                ? " | ORBIT: mouse drag rotate, wheel or Z/X zoom, Q/E rotate, arrows/WASD drive, C next camera"
                 : " | C Next camera"));
         drawHud(window);
     }

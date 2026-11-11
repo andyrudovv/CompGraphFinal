@@ -107,11 +107,14 @@ namespace game {
         engine::Hud hud_;
         engine::Camera camera_;
         engine::Environment env_;
-        enum class CameraMode { Chase, Free };
+        enum class CameraMode { Chase, Free, Orbit };
         CameraMode cameraMode_ = CameraMode::Chase;
         float cameraYaw_ = 0.0f;
         float cameraPitch_ = 0.0f;
-
+        // Orbit camera: spherical coordinates around the player's car.
+        float orbitYaw_ = 0.6f;    // 0 = straight behind the car
+        float orbitPitch_ = 0.3f;
+        float orbitDist_ = 9.0f;
 
         engine::Mesh ground_, road_, dash_, curb_;
         engine::Mesh carBody_, carTrim_, carHead_, carTail_, wheel_, playerKit_;
