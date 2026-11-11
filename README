@@ -64,6 +64,20 @@ Command-line flags (used for the screenshots and for smoke testing):
     Left / Right  (or A / D)   change lane
     Up            (or W)       accelerate
     Down          (or S)       brake
+    C                          cycle chase -> free-fly -> orbit -> chase
+    In free-fly mode:
+      I / K, J / L             fly forward/backward, strafe left/right
+      Q / E                    move down / up (camera stays above ground)
+      Mouse drag (LMB/RMB)     look around
+      Mouse wheel              fly forward / backward
+      Shift                    faster flight
+    In orbit mode:
+      Mouse drag (LMB/RMB)     rotate around the player's car
+      Mouse wheel or Z / X    zoom in / out
+      Q / E                    rotate around the car
+      Arrows or WASD           drive as usual
+    WASD and arrow keys drive the car in every camera mode.
+    Both camera modes work while paused (P).
     R                          restart the run
     P                          pause
     1                          fixed daytime (noon)
