@@ -1113,6 +1113,7 @@ namespace game {
     }
 
     void Game::render(engine::Window& window) {
+        env_.time = static_cast<float>(window.time());
         renderer_.beginFrame(camera_, env_);
         renderer_.drawSky();
 
@@ -1162,6 +1163,7 @@ namespace game {
                 engine::Material m;
                 m.tint = p.color;
                 m.specular = 0.05f;
+                m.sway = 0.3f * p.scale;
                 renderer_.draw(tree_, glm::scale(model, glm::vec3(p.scale)), m);
                 break;
             }
