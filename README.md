@@ -259,6 +259,17 @@ We link GLFW, GLEW, and GLM separately rather than bundling them with our source
 
 Optional `models/car.obj` and `models/truck.obj` files can be placed in a `models/` directory at the project root and used when launching from that root. The loader supports OBJ geometry and MTL `Kd` colours, not full material and texture import. CMake automatically copies only `shaders/`, so external models should not be assumed to ship with the executable. Retain source information and redistribution permission for any models added later.
 
+## Team and module ownership
+
+| Member | Graphics contribution (course topic) | Other |
+| --- | --- | --- |
+| Alikhan Mukhamed-Rakhym | Port to freeglut (week 3) and Bezier patch `bezierPatch` with roadside hills (week 6): branch `alikhan`, not merged into `main` yet | Windows testing, demo video |
+| Andrey Rudov | Headlight spot lights in `scene.frag` (week 5); hierarchical car model body → wheels → lights, `engine/node.h` (week 9) | PR review, merges into `main`, build, report |
+| Dana Tutkyshbaeva | Planned: `.obj` car and truck models (week 4), wind sway in the vertex shader (week 10). `engine/objloader.*` exists; no models or wind shader are pushed yet | Gameplay logic, slides |
+| Violetta Yun | Planned: sky reflection on the car body via environment mapping (week 8), not pushed yet. Done: free-fly/orbit cameras, mouse input, help panel | Texture fixes, README |
+
+Status of every course topic: `docs/COURSE_COVERAGE.md`. Details: `docs/ARCHITECTURE.md`, `docs/SHADERS.md`, `docs/CONTROLS_AND_TESTING.md`.
+
 ## Requirements status
 
 The table below summarizes our current implementation against the common technical and README requirements in `CG_Final_Project_Requirements_2026-2027.docx`.
@@ -280,7 +291,7 @@ The table below summarizes our current implementation against the common technic
 | README: OS, compiler, build, run, and exact keys | Included | Dependencies, platform-specific commands, controls, and launch options are listed above |
 | Windows build path | Included | CMake supports MSVC; Windows 10 build instructions use vcpkg |
 | Shaders loaded from separate files | Implemented | Three shader pairs in `shaders/` |
-| Named owner for each module | To be completed | We still need to document module ownership |
+| Named owner for each module | Included | See "Team and module ownership" |
 | Initial state, score, failure, and reset | Implemented | Playing state at launch, score, Crashed state, and restart with R |
 | Play for at least one minute without restarting the process | Supported | Endless gameplay with no time limit and an in-process restart |
 | On-screen team names, exact topic, and technique state | Partial | Score and Cycle ON/OFF are displayed; team names and the exact assigned topic title remain to be added; Cycle OFF does not mean effect OFF |
