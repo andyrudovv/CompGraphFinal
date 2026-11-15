@@ -35,9 +35,9 @@ There are no automated unit tests in the repository. What exists:
 | Pause / restart / crash flow | `P`, crash into traffic, `R`; `F1` pauses while help is open | manual |
 | Long run | Play > 60 s without restarting the process | manual |
 
-## FPS measurement (to be filled in by the team)
+## FPS measurement
 
-No measurements were taken by the author of this file, so the table is intentionally empty. Do not invent numbers.
+Reported by the team: more than 1000 FPS in the default scene at 1280×720. The exact value per case, the minimum FPS and the GPU were not given, so only a lower bound is filled in below.
 
 How to measure on the lab PC (1280×720, default scene):
 
@@ -47,12 +47,12 @@ How to measure on the lab PC (1280×720, default scene):
 
 | Case | Camera | Time of day | Avg FPS | Min FPS | GPU / driver |
 | --- | --- | --- | --- | --- | --- |
-| Day | chase | `1` | | | |
-| Night (spots + lamps) | chase | `3` | | | |
-| Night | orbit | `3` | | | |
-| Crash scene (sparks + debris) | chase | `3` | | | |
+| Day | chase | `1` | >1000 | | |
+| Night (spots + lamps) | chase | `3` | >1000 | | |
+| Night | orbit | `3` | >1000 | | |
+| Crash scene (sparks + debris) | chase | `3` | >1000 | | |
 
-Requirement: ≥ 30 FPS at 1280×720. If a case is below, a quality toggle is required (none exists yet).
+Requirement: ≥ 30 FPS at 1280×720: met. A quality toggle would only be needed if a case fell below it.
 
 ## Known issues
 
