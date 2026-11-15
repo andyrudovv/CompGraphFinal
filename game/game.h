@@ -83,6 +83,8 @@ namespace game {
         void update(engine::Window& window);
         void render(engine::Window& window);
         void setDayTime(float t);
+        void setLightingEnabled(bool enabled) { env_.lightingEnabled = enabled; }
+        bool lightingEnabled() const { return env_.lightingEnabled; }
 
     private:
         enum class State { Playing, Crashed };

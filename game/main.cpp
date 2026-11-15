@@ -10,11 +10,13 @@ int main(int argc, char** argv) {
     int frameLimit = 0;          // --frames N: quit after N frames (smoke test)
     std::string shotPath;        // --shot file.ppm: save the last frame
     float startTime = -1.0f;     // --time 0..1: where the day/night cycle starts
+    bool lightingEnabled = true;
 
     for (int i = 1; i < argc; ++i) {
         if (!std::strcmp(argv[i], "--frames") && i + 1 < argc) frameLimit = std::atoi(argv[++i]);
         else if (!std::strcmp(argv[i], "--shot") && i + 1 < argc) shotPath = argv[++i];
         else if (!std::strcmp(argv[i], "--time") && i + 1 < argc) startTime = std::atof(argv[++i]);
+        else if (!std::strcmp(argv[i], "--lighting-off")) lightingEnabled = false;
     }
 
     engine::Window window;
@@ -26,6 +28,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     if (startTime >= 0.0f) game.setDayTime(startTime);
+    game.setLightingEnabled(lightingEnabled);
 
     int frame = 0;
     while (!window.shouldClose()) {

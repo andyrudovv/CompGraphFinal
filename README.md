@@ -8,7 +8,7 @@ We built Lane Runner as an endless three-lane driving game and a small custom 3D
 - **Repository:** <https://github.com/andyrudovv/CompGraphFinal>.
 - **Supported platforms:** Linux, Windows, and macOS.
 
-Our project separates reusable rendering and platform code in `engine/` from game logic in `game/`. This README describes the features available in commit `98c9b5ce195efa1bbbb905a9dc8f0e92a94a0cfa` on `main`.
+Our project separates reusable rendering and platform code in `engine/` from game logic in `game/`.
 
 ## Features
 
@@ -21,6 +21,7 @@ Our project separates reusable rendering and platform code in `engine/` from gam
 - Hierarchical car transforms, rotating wheels, and headlights that follow the car.
 - Sedans and trucks, traffic following and braking, lane changes at later levels, collisions, sparks, and debris.
 - Fixed 120 Hz simulation, pause, restart without closing the application, on-screen help, and PPM screenshots.
+- Independent dynamic-lighting ON/OFF comparison with key 5 and a persistent HUD indicator.
 
 ## System requirements
 
@@ -136,6 +137,7 @@ Letter keys refer to a Latin keyboard layout. Driving controls remain available 
 | 2 | Set sunset (`t = 0.48`) and stop the automatic cycle |
 | 3 | Set night (`t = 0.75`) and stop the automatic cycle |
 | 4 | Enable / disable automatic time-of-day progression |
+| 5 | Toggle dynamic Blinn–Phong lighting ON/OFF |
 | F2 | Save `screenshot.ppm` in the current working directory |
 | Esc | Close the application |
 
@@ -145,7 +147,9 @@ P and R are ignored while help is open. Closing help restores the previous norma
 
 **Orbit:** drag with either the left or right mouse button to rotate around the car; Q/E rotate horizontally. Use the mouse wheel or Z/X to zoom in/out.
 
-**Technique comparison:** `4` freezes or resumes time-of-day progression. Lighting, fog, the sky, and headlights continue to render. There is currently no separate ON/OFF key for comparing the headline graphics technique.
+**Technique comparison:** press `5` to enable or disable dynamic Blinn–Phong lighting. OFF skips directional, point, and spotlight diffuse/specular calculations; ambient light, textures, emissive surfaces, fog, and the sky remain visible as the baseline. The HUD and window title show `DYNAMIC LIGHTING: ON/OFF`. This works while paused, in help, after a crash, and in all camera modes. Restart preserves the selected lighting state. Key `4` independently freezes or resumes time-of-day progression.
+
+For a visual comparison, press `P`, select `3` for fixed night lighting, then press `5` to compare the same scene with and without dynamic lighting. Close help with F1/H if needed. For FPS measurements, use the same resolution, camera, scene, VSync setting, and measurement interval in both modes.
 
 ## Gameplay and interface
 
@@ -161,7 +165,7 @@ score = int(distance_in_metres * 0.5) + overtakes * 25
 
 The difficulty level increases every 18 seconds. Base speed rises from 24 to 58 m/s; acceleration and braking apply an additional multiplier. The base traffic spawn interval decreases from 1.15 to 0.30 seconds, with an additional random multiplier. Traffic can change lanes starting at level 3. Space checks reduce the risk of blocking the road, but do not guarantee that every collision scenario is survivable.
 
-The HUD shows the score, speed in km/h and a speed bar, difficulty level, night intensity, and overtakes. After a crash, it displays the final score and the best score for the current process. The best score is not saved to disk. An F1/H hint appears at the bottom; the automatic cycle's ON/OFF state and camera mode appear in the window title. Team names and the exact assigned topic title are not yet displayed on screen.
+The HUD shows the score, speed in km/h and a speed bar, difficulty level, night intensity, and overtakes. After a crash, it displays the final score and the best score for the current process. The best score is not saved to disk. An F1/H hint and the dynamic-lighting ON/OFF state appear at the bottom; the window title also shows the automatic cycle and camera mode. Team names and the exact assigned topic title are not yet displayed on screen.
 
 ## Graphics implementation
 
@@ -236,6 +240,7 @@ The simulation uses a time accumulator with a fixed step of `1/120` second. Key 
 | `--frames N` | Exit after N rendered frames when N > 0 |
 | `--shot FILE` | Save the final frame as PPM when exiting through `--frames` |
 | `--time T` | Set the initial time of day; the normal range is `[0, 1)` |
+| `--lighting-off` | Start with dynamic lighting disabled; key 5 can turn it back on |
 
 `--time` does not disable the automatic cycle. Without a positive `--frames` value, `--shot` does not save an image on normal exit. Changing the filename extension does not change the PPM output format.
 
@@ -243,6 +248,7 @@ The simulation uses a time accumulator with a fixed step of `1/120` second. Key 
 ./build/laneRunner --frames 3 --time 0.25 --shot day.ppm
 ./build/laneRunner --frames 3 --time 0.48 --shot sunset.ppm
 ./build/laneRunner --frames 3 --time 0.75 --shot night.ppm
+./build/laneRunner --frames 3 --time 0.75 --lighting-off --shot night-off.ppm
 ```
 
 To explore the scene, launch the game, press P, select 1/2/3, and switch cameras with C. The night preset immediately shows headlights, street lamps, and illuminated windows without waiting for a full cycle. Open help with F1/H and capture a screenshot with F2.
@@ -274,7 +280,7 @@ The table below summarizes our current implementation against the common technic
 | Depth testing and consistent back-face culling | Implemented | Enabled for 3D; temporarily changed for sky/HUD |
 | F1/H on-screen control help | Implemented | Help panel and bottom-screen hint |
 | Animation pause | Implemented | P pauses the simulation; opening help also pauses it |
-| Headline technique ON/OFF toggle | Partial | 4 toggles time progression; a separate effect comparison mode remains to be added |
+| Dynamic lighting ON/OFF toggle | Implemented | 5 toggles directional, point and spot lighting; state displayed in HUD and window title |
 | Movable light or rotatable light direction | Implemented | Sun direction changes; headlights follow car transforms |
 | Missing-resource and shader-error diagnostics | Partial | Shader/OBJ/context errors are reported; texture uploads and screenshots need complete error reporting; no custom FBOs are used |
 | README: OS, compiler, build, run, and exact keys | Included | Dependencies, platform-specific commands, controls, and launch options are listed above |
@@ -283,12 +289,11 @@ The table below summarizes our current implementation against the common technic
 | Named owner for each module | To be completed | We still need to document module ownership |
 | Initial state, score, failure, and reset | Implemented | Playing state at launch, score, Crashed state, and restart with R |
 | Play for at least one minute without restarting the process | Supported | Endless gameplay with no time limit and an in-process restart |
-| On-screen team names, exact topic, and technique state | Partial | Score and Cycle ON/OFF are displayed; team names and the exact assigned topic title remain to be added; Cycle OFF does not mean effect OFF |
+| On-screen team names, exact topic, and technique state | Partial | Score, Cycle ON/OFF and Dynamic Lighting ON/OFF are displayed; team names and the exact assigned topic title remain to be added |
 | Technique visible within the first 15 seconds | Scene visible immediately | The scene appears at launch, and 1/2/3 select lighting presets directly |
 
 ### Current limitations and remaining work
 
-- We need a separate ON/OFF comparison mode for the headline graphics technique, with its state displayed on screen. Key 4 currently controls only time progression.
 - We still need to add team names and the exact assigned topic title to the on-screen interface and document module ownership.
 - Texture upload errors and screenshot write failures need more complete diagnostic messages.
 - Target-PC FPS measurements remain to be recorded. The current version has no quality toggle.

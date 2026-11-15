@@ -54,6 +54,8 @@ struct SpotLight {
 
 // Everything the scene shader needs besides the geometry itself.
 struct Environment {
+    // OFF keeps ambient colour, emission and fog as the comparison baseline.
+    bool lightingEnabled = true;
     glm::vec3 sunDirection{0.0f, 1.0f, 0.0f};  // astronomical sun, drives the sky disc
     glm::vec3 sunColor{1.0f};
     glm::vec3 lightDirection{0.0f, 1.0f, 0.0f};  // towards the sun by day, the moon by night

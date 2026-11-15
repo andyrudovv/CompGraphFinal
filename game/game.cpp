@@ -374,6 +374,7 @@ namespace game {
         if (window.keyPressed(GLFW_KEY_2)) { setDayTime(0.48f); dayCycle_ = false; }
         if (window.keyPressed(GLFW_KEY_3)) { setDayTime(0.75f); dayCycle_ = false; }
         if (window.keyPressed(GLFW_KEY_4)) dayCycle_ = !dayCycle_;
+        if (window.keyPressed(GLFW_KEY_5)) setLightingEnabled(!lightingEnabled());
 
 
         if (window.keyPressed(GLFW_KEY_ESCAPE)) window.close();
@@ -1239,6 +1240,7 @@ namespace game {
 
         window.setTitle(std::string("Lane Runner | 1 Day  2 Sunset  3 Night  4 Cycle: ") +
             (dayCycle_ ? "ON" : "OFF") +
+            " | 5 Dynamic lighting: " + (lightingEnabled() ? "ON" : "OFF") +
             (cameraMode_ == CameraMode::Free
                 ? " | FREE-FLY: IJKL fly, Q/E down/up, mouse drag look, wheel fly, Shift fast, WASD/arrows drive, C next camera"
                 : cameraMode_ == CameraMode::Orbit
@@ -1314,6 +1316,7 @@ namespace game {
             line(28, 404, "LIGHTING", amber);
             line(28, 438, "1 - DAY  2 - SUNSET  3 - NIGHT", white);
             line(28, 468, "4 - TOGGLE DAY/NIGHT CYCLE", white);
+            line(28, 498, "5 - TOGGLE DYNAMIC LIGHTING", white);
             line(590, 106, "FREE-FLY CAMERA", amber);
             line(590, 140, "I/K - FLY FORWARD / BACKWARD", white);
             line(590, 170, "J/L - FLY LEFT / RIGHT", white);
@@ -1331,6 +1334,11 @@ namespace game {
             hud_.rect(12 * ui, h - 34 * ui, 220 * ui, 26 * ui, glm::vec4(0, 0, 0, 0.65f));
             hud_.text(20 * ui, h - 28 * ui, 2 * ui, "F1 / H - CONTROLS", white);
         }
+        // Keep the comparison state visible in every camera, on pause and in help.
+        hud_.rect(w - 372 * ui, h - 34 * ui, 360 * ui, 26 * ui, glm::vec4(0, 0, 0, 0.65f));
+        hud_.text(w - 364 * ui, h - 28 * ui, 2 * ui,
+            lightingEnabled() ? "5 - DYNAMIC LIGHTING: ON" : "5 - DYNAMIC LIGHTING: OFF",
+            lightingEnabled() ? white : amber);
         hud_.end();
     }
 

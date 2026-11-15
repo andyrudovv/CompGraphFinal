@@ -24,6 +24,7 @@ void Renderer::beginFrame(const Camera& camera, const Environment& env) {
     scene_.use();
     scene_.setMat4("uViewProj", camera_.viewProjection());
     scene_.setVec3("uCamPos", camera_.position);
+    scene_.setInt("uLightingEnabled", env_.lightingEnabled ? 1 : 0);
     scene_.setVec3("uLightDir", glm::normalize(env_.lightDirection));
     scene_.setVec3("uLightColor", env_.lightColor);
     scene_.setVec3("uAmbient", env_.ambient);

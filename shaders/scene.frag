@@ -15,6 +15,7 @@ uniform vec3 uTint;
 uniform float uEmissive;
 uniform float uSpecular;
 uniform float uShininess;
+uniform int uLightingEnabled;
 
 // Texturing. Textures are authored around 0.8 grey (see engine/texgen.h), so the
 // gain restores the brightness of the vertex colour and the texture only adds
@@ -54,46 +55,51 @@ void main() {
         albedo *= texel.rgb * TEX_GAIN;
         glowColor = texel.rgb * texel.a * uTexGlow;
     }
-    vec3 N = normalize(vNormal);
-    vec3 V = normalize(uCamPos - vWorldPos);
-
     vec3 lit = uAmbient * albedo;
 
-    float ndl = max(dot(N, uLightDir), 0.0);
-    lit += uLightColor * albedo * ndl;
-    if (ndl > 0.0) {
-        vec3 H = normalize(uLightDir + V);
-        lit += uLightColor * uSpecular * pow(max(dot(N, H), 0.0), uShininess);
-    }
+    // Skip the directional, point and spot Blinn-Phong calculations in OFF mode.
+    // The scene, textures, ambient, emissive surfaces and fog stay comparable.
+    if (uLightingEnabled != 0) {
+        vec3 N = normalize(vNormal);
+        vec3 V = normalize(uCamPos - vWorldPos);
 
-    for (int i = 0; i < uPointCount; ++i) {
-        vec3 delta = uPointPos[i] - vWorldPos;
-        float dist = length(delta);
-        vec3 L = delta / max(dist, 0.0001);
-        float att = clamp(1.0 - dist / uPointRange[i], 0.0, 1.0);
-        att *= att;
-        float nl = max(dot(N, L), 0.0);
-        lit += uPointColor[i] * albedo * nl * att;
-        if (nl > 0.0) {
-            vec3 H = normalize(L + V);
-            lit += uPointColor[i] * uSpecular * pow(max(dot(N, H), 0.0), uShininess) * att;
+        float ndl = max(dot(N, uLightDir), 0.0);
+        lit += uLightColor * albedo * ndl;
+        if (ndl > 0.0) {
+            vec3 H = normalize(uLightDir + V);
+            lit += uLightColor * uSpecular * pow(max(dot(N, H), 0.0), uShininess);
         }
-    }
 
-    for (int i = 0; i < uSpotCount; ++i) {
-        vec3 delta = uSpotPos[i] - vWorldPos;
-        float dist = length(delta);
-        vec3 L = delta / max(dist, 0.0001);
-        // Cone falloff on the angle between the beam axis and the light-to-fragment ray.
-        float cone = smoothstep(uSpotCosOuter[i], uSpotCosInner[i], dot(-L, uSpotDir[i]));
-        float att = clamp(1.0 - dist / uSpotRange[i], 0.0, 1.0);
-        att *= att * cone;
-        float nl = max(dot(N, L), 0.0);
-        lit += uSpotColor[i] * albedo * nl * att;
-        if (nl > 0.0) {
-            vec3 H = normalize(L + V);
-            lit += uSpotColor[i] * uSpecular * pow(max(dot(N, H), 0.0), uShininess) * att;
+        for (int i = 0; i < uPointCount; ++i) {
+            vec3 delta = uPointPos[i] - vWorldPos;
+            float dist = length(delta);
+            vec3 L = delta / max(dist, 0.0001);
+            float att = clamp(1.0 - dist / uPointRange[i], 0.0, 1.0);
+            att *= att;
+            float nl = max(dot(N, L), 0.0);
+            lit += uPointColor[i] * albedo * nl * att;
+            if (nl > 0.0) {
+                vec3 H = normalize(L + V);
+                lit += uPointColor[i] * uSpecular * pow(max(dot(N, H), 0.0), uShininess) * att;
+            }
         }
+
+        for (int i = 0; i < uSpotCount; ++i) {
+            vec3 delta = uSpotPos[i] - vWorldPos;
+            float dist = length(delta);
+            vec3 L = delta / max(dist, 0.0001);
+            // Cone falloff on the angle between the beam axis and the light-to-fragment ray.
+            float cone = smoothstep(uSpotCosOuter[i], uSpotCosInner[i], dot(-L, uSpotDir[i]));
+            float att = clamp(1.0 - dist / uSpotRange[i], 0.0, 1.0);
+            att *= att * cone;
+            float nl = max(dot(N, L), 0.0);
+            lit += uSpotColor[i] * albedo * nl * att;
+            if (nl > 0.0) {
+                vec3 H = normalize(L + V);
+                lit += uSpotColor[i] * uSpecular * pow(max(dot(N, H), 0.0), uShininess) * att;
+            }
+        }
+
     }
 
     vec3 color = mix(lit, albedo, uEmissive) + glowColor;
