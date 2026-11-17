@@ -32,6 +32,8 @@ struct Material {
     // 0..1: how strongly the texture's alpha channel (lit windows) glows,
     // independent of the lighting. Driven by the day/night cycle.
     float textureGlow = 0.0f;
+    // Wind sway in metres at the top of the model (see shaders/scene.vert). 0 = rigid.
+    float sway = 0.0f;
 };
 
 struct PointLight {
@@ -67,6 +69,7 @@ struct Environment {
     glm::vec3 skyHorizon{0.8f, 0.85f, 0.95f};
     glm::vec3 groundColor{0.15f, 0.16f, 0.14f};
     float night = 0.0f;  // 0 day .. 1 night, drives stars and the moon
+    float time = 0.0f;   // seconds since start, drives the wind
     std::vector<PointLight> pointLights;
     std::vector<SpotLight> spotLights;
 };
