@@ -265,6 +265,17 @@ We link GLFW, GLEW, and GLM separately rather than bundling them with our source
 
 Optional `models/car.obj` and `models/truck.obj` files can be placed in a `models/` directory at the project root and used when launching from that root. The loader supports OBJ geometry and MTL `Kd` colours, not full material and texture import. CMake automatically copies only `shaders/`, so external models should not be assumed to ship with the executable. Retain source information and redistribution permission for any models added later.
 
+## Team and module ownership
+
+| Member | Graphics contribution (course topic) | Other |
+| --- | --- | --- |
+| Alikhan Mukhamed-Rakhym | Port to freeglut (week 3) and Bezier patch `bezierPatch` with roadside hills (week 6): branch `alikhan`, not merged into `main` yet | Windows testing, demo video |
+| Andrey Rudov | Headlight spot lights in `scene.frag` (week 5); hierarchical car model body → wheels → lights, `engine/node.h` (week 9) | PR review, merges into `main`, build, report |
+| Dana Tutkyshbaeva | Planned: `.obj` car and truck models (week 4), wind sway in the vertex shader (week 10). `engine/objloader.*` exists; no models or wind shader are pushed yet | Gameplay logic, slides |
+| Violetta Yun | Planned: sky reflection on the car body via environment mapping (week 8), not pushed yet. Done: free-fly/orbit cameras, mouse input, help panel | Texture fixes, README |
+
+Status of every course topic: `docs/COURSE_COVERAGE.md`. Details: `docs/ARCHITECTURE.md`, `docs/SHADERS.md`, `docs/CONTROLS_AND_TESTING.md`.
+
 ## Requirements status
 
 The table below summarizes our current implementation against the common technical and README requirements in `CG_Final_Project_Requirements_2026-2027.docx`.
@@ -273,7 +284,7 @@ The table below summarizes our current implementation against the common technic
 | --- | --- | --- |
 | OpenGL 3.3+ Core and a custom renderer | Implemented | GLFW 3.3 Core context, GLSL 330, and our own rendering code |
 | Windowed real-time application | Implemented | Default 1280×720 window and update/render loop |
-| ≥30 FPS on a typical lab PC at 1280×720 | Measurement pending | We still need to record performance on the target lab PC; a quality toggle is required if FPS falls below 30 |
+| ≥30 FPS on a typical lab PC at 1280×720 | Implemented | The team measured more than 1000 FPS in the default scene at 1280×720; GPU, driver and per-case minimum values are not recorded yet, so no quality toggle is needed |
 | Perspective/view matrices and resize-safe aspect ratio | Implemented | Framebuffer dimensions update and the current aspect ratio is passed to the camera |
 | Free-fly or Orbit in addition to the game camera | Implemented | C cycles through Chase, Free-fly, and Orbit |
 | Lit programmable vertex/fragment shaders | Implemented | Scene shaders with Blinn–Phong lighting and textures |
@@ -286,7 +297,7 @@ The table below summarizes our current implementation against the common technic
 | README: OS, compiler, build, run, and exact keys | Included | Dependencies, platform-specific commands, controls, and launch options are listed above |
 | Windows build path | Included | CMake supports MSVC; Windows 10 build instructions use vcpkg |
 | Shaders loaded from separate files | Implemented | Three shader pairs in `shaders/` |
-| Named owner for each module | To be completed | We still need to document module ownership |
+| Named owner for each module | Included | See "Team and module ownership" |
 | Initial state, score, failure, and reset | Implemented | Playing state at launch, score, Crashed state, and restart with R |
 | Play for at least one minute without restarting the process | Supported | Endless gameplay with no time limit and an in-process restart |
 | On-screen team names, exact topic, and technique state | Partial | Score, Cycle ON/OFF and Dynamic Lighting ON/OFF are displayed; team names and the exact assigned topic title remain to be added |
@@ -296,7 +307,7 @@ The table below summarizes our current implementation against the common technic
 
 - We still need to add team names and the exact assigned topic title to the on-screen interface and document module ownership.
 - Texture upload errors and screenshot write failures need more complete diagnostic messages.
-- Target-PC FPS measurements remain to be recorded. The current version has no quality toggle.
+- We still need to record the GPU, driver, and minimum FPS for the reported >1000 FPS result. The current version has no quality toggle, which is not needed at this frame rate.
 - The best score is stored only for the current process; collision physics uses simplified bounds and impulses without continuous collision detection.
 
 The supplied requirements file references Section 6 but does not contain it. Our topic-specific feature checklist therefore still needs to be matched against the official assigned topic.
