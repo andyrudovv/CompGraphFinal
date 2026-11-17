@@ -191,6 +191,7 @@ namespace game {
         std::vector<float> dashes_;
         float spawnTimer_ = 1.0f;
         float dayTime_ = 0.12f;  // 0..1, 0.25 is noon
+        float sunYaw_ = 0.0f;     // extra rotation of the sun around the vertical axis, [ and ] keys
         float night_ = 0.0f;
 
         std::mt19937 rng_{ 20260916u };

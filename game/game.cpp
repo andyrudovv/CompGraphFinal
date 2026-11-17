@@ -415,6 +415,18 @@ namespace game {
         if (window.keyPressed(GLFW_KEY_B)) hills_ = !hills_;
         if (window.keyPressed(GLFW_KEY_V)) { vsync_ = !vsync_; window.setVsync(vsync_); }
 
+        // Manual light control, also while paused: [ and ] turn the sun around the
+        // vertical axis, - and = move it along its daily arc (this stops the cycle).
+        const float rdt = std::min(window.dt(), 0.1f);
+        sunYaw_ += glm::radians(60.0f) * rdt *
+            (int(window.keyDown(GLFW_KEY_RIGHT_BRACKET)) - int(window.keyDown(GLFW_KEY_LEFT_BRACKET)));
+        sunYaw_ = std::remainder(sunYaw_, TWO_PI);
+        int arc = int(window.keyDown(GLFW_KEY_EQUAL)) - int(window.keyDown(GLFW_KEY_MINUS));
+        if (arc != 0) {
+            setDayTime(dayTime_ + arc * rdt / 12.0f);
+            dayCycle_ = false;
+        }
+
 
         if (window.keyPressed(GLFW_KEY_ESCAPE)) window.close();
         if (!showHelp_ && window.keyPressed(GLFW_KEY_P)) paused_ = !paused_;
@@ -970,6 +982,8 @@ namespace game {
 
         float angle = dayTime_ * TWO_PI;
         glm::vec3 sunDir = glm::normalize(glm::vec3(std::cos(angle) * 0.9f, std::sin(angle), -0.35f));
+        float cy = std::cos(sunYaw_), sy = std::sin(sunYaw_);
+        sunDir = glm::vec3(cy * sunDir.x + sy * sunDir.z, sunDir.y, -sy * sunDir.x + cy * sunDir.z);
         float elevation = sunDir.y;
         float day = glm::smoothstep(-0.12f, 0.18f, elevation);
         night_ = 1.0f - day;
@@ -1352,9 +1366,9 @@ namespace game {
         }
 
         // Scale the help panel with the framebuffer, including Retina displays.
-        const float ui = std::min(w / 1200.0f, h / 680.0f);
+        const float ui = std::min(w / 1200.0f, h / 700.0f);
         if (showHelp_) {
-            const float panelW = 1120.0f * ui, panelH = 550.0f * ui;
+            const float panelW = 1120.0f * ui, panelH = 580.0f * ui;
             const float left = (w - panelW) * 0.5f, top = (h - panelH) * 0.5f;
             hud_.rect(0, 0, w, h, glm::vec4(0, 0, 0, 0.45f));
             hud_.rect(left, top, panelW, panelH, glm::vec4(0.03f, 0.05f, 0.09f, 0.97f));
@@ -1379,8 +1393,6 @@ namespace game {
             line(28, 438, "1 - DAY  2 - SUNSET  3 - NIGHT", white);
             line(28, 468, "4 - TOGGLE DAY/NIGHT CYCLE", white);
             line(28, 498, "5 - TOGGLE DYNAMIC LIGHTING", white);
-            line(590, 498, "B - TOGGLE BEZIER HILLS", white);
-            line(590, 528, "V - TOGGLE VSYNC (FPS TESTS)", white);
             line(590, 106, "FREE-FLY CAMERA", amber);
             line(590, 140, "I/K - FLY FORWARD / BACKWARD", white);
             line(590, 170, "J/L - FLY LEFT / RIGHT", white);
@@ -1392,8 +1404,10 @@ namespace game {
             line(590, 364, "HOLD LEFT/RIGHT MOUSE - ROTATE", white);
             line(590, 394, "Q/E - ROTATE AROUND CAR", white);
             line(590, 424, "WHEEL OR Z/X - ZOOM IN / OUT", white);
-            line(590, 468, "P TO PAUSE WHILE EXPLORING", white);
-            line(28, 516, "GAME PAUSED. F1 / H CLOSES HELP.", amber);
+            line(590, 454, "SCENE AND TESTS", amber);
+            line(590, 484, "B - BEZIER HILLS   V - VSYNC", white);
+            line(590, 514, "[ ] - TURN SUN   - = - MOVE SUN", white);
+            line(28, 546, "GAME PAUSED. F1 / H CLOSES HELP.", amber);
         } else {
             hud_.rect(12 * ui, h - 34 * ui, 220 * ui, 26 * ui, glm::vec4(0, 0, 0, 0.65f));
             hud_.text(20 * ui, h - 28 * ui, 2 * ui, "F1 / H - CONTROLS", white);

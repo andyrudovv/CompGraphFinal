@@ -141,6 +141,8 @@ Letter keys refer to a Latin keyboard layout. Driving controls remain available 
 | 5 | Toggle dynamic Blinn–Phong lighting ON/OFF |
 | B | Show / hide the Bezier hills |
 | V | Toggle VSync (use OFF for FPS measurements) |
+| [ / ] | Hold to turn the sun (light direction) around the vertical axis |
+| - / = | Hold to move the sun along its daily arc; stops the automatic cycle |
 | F2 | Save `screenshot.ppm` in the current working directory |
 | Esc | Close the application |
 
@@ -299,7 +301,7 @@ The table below summarizes our current implementation against the common technic
 | Lit programmable vertex/fragment shaders | Implemented | Scene shaders with Blinn–Phong lighting and textures |
 | Depth testing and consistent back-face culling | Implemented | Enabled for 3D; temporarily changed for sky/HUD |
 | F1/H on-screen control help | Implemented | Help panel and bottom-screen hint |
-| Animation pause | Implemented | P pauses the simulation; opening help also pauses it |
+| Movable light or rotatable light direction | Implemented | [ and ] turn the sun around the vertical axis, - and = move it along its arc; headlights follow car transforms |
 | Dynamic lighting ON/OFF toggle | Implemented | 5 toggles directional, point and spot lighting; state displayed in HUD and window title |
 | Movable light or rotatable light direction | Implemented | Sun direction changes; headlights follow car transforms |
 | Missing-resource and shader-error diagnostics | Partial | Shader/OBJ/context errors are reported; texture uploads and screenshots need complete error reporting; no custom FBOs are used |
