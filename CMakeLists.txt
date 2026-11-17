@@ -17,7 +17,6 @@ if(MSVC)
 else()
     target_compile_options(laneRunner PRIVATE -Wall -Wextra)
 endif()
-# Assets in the build tree also work when launched from another directory.
 add_custom_target(laneRunnerAssets ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/shaders" "${CMAKE_CURRENT_BINARY_DIR}/shaders")

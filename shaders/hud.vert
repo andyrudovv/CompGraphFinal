@@ -1,8 +1,10 @@
 #version 330 core
 
-layout(location = 0) in vec2 aCorner;  // unit quad
+// HUD vertex shader. Converts pixel coordinates to clip space.
 
-uniform vec4 uRect;    // x, y, width, height in pixels, origin top-left
+layout(location = 0) in vec2 aCorner;
+
+uniform vec4 uRect;
 uniform vec2 uScreen;
 
 void main() {

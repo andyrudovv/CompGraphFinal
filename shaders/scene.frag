@@ -1,5 +1,9 @@
 #version 330 core
 
+// Scene fragment shader. Texturing, Blinn-Phong lighting from the sun or moon, street lamps
+// and headlight spot lights, emissive windows and exponential fog. Key 5 turns the dynamic
+// lighting off.
+
 #define MAX_POINT_LIGHTS 8
 #define MAX_SPOT_LIGHTS 4
 
@@ -17,9 +21,6 @@ uniform float uSpecular;
 uniform float uShininess;
 uniform int uLightingEnabled;
 
-// Texturing. Textures are authored around 0.8 grey (see engine/texgen.h), so the
-// gain restores the brightness of the vertex colour and the texture only adds
-// detail. The alpha channel is a mask of self-lit pixels (windows at night).
 uniform sampler2D uTex;
 uniform int uUseTex;
 uniform vec2 uUvScale;
@@ -38,7 +39,7 @@ uniform float uPointRange[MAX_POINT_LIGHTS];
 
 uniform int uSpotCount;
 uniform vec3 uSpotPos[MAX_SPOT_LIGHTS];
-uniform vec3 uSpotDir[MAX_SPOT_LIGHTS];  // unit length, set by the renderer
+uniform vec3 uSpotDir[MAX_SPOT_LIGHTS];
 uniform vec3 uSpotColor[MAX_SPOT_LIGHTS];
 uniform float uSpotRange[MAX_SPOT_LIGHTS];
 uniform float uSpotCosInner[MAX_SPOT_LIGHTS];
@@ -57,8 +58,6 @@ void main() {
     }
     vec3 lit = uAmbient * albedo;
 
-    // Skip the directional, point and spot Blinn-Phong calculations in OFF mode.
-    // The scene, textures, ambient, emissive surfaces and fog stay comparable.
     if (uLightingEnabled != 0) {
         vec3 N = normalize(vNormal);
         vec3 V = normalize(uCamPos - vWorldPos);
@@ -88,7 +87,6 @@ void main() {
             vec3 delta = uSpotPos[i] - vWorldPos;
             float dist = length(delta);
             vec3 L = delta / max(dist, 0.0001);
-            // Cone falloff on the angle between the beam axis and the light-to-fragment ray.
             float cone = smoothstep(uSpotCosOuter[i], uSpotCosInner[i], dot(-L, uSpotDir[i]));
             float att = clamp(1.0 - dist / uSpotRange[i], 0.0, 1.0);
             att *= att * cone;

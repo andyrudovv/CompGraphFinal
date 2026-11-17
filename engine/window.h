@@ -1,3 +1,6 @@
+// GLFW window and input. Creates the OpenGL 3.3 core context, keeps the frame clock and stores
+// which keys and mouse buttons are held or were just pressed.
+
 #ifndef ENGINE_WINDOW_H
 #define ENGINE_WINDOW_H
 
@@ -7,7 +10,6 @@ struct GLFWwindow;
 
 namespace engine {
 
-// Owns the GLFW/GLEW context, the frame clock and the keyboard state.
 class Window {
 public:
     Window() = default;
@@ -17,19 +19,17 @@ public:
     bool shouldClose() const;
     void close();
 
-    void beginFrame();  // poll events, advance the clock, latch key edges
-    void endFrame();    // swap buffers
+    void beginFrame();
+    void endFrame();
 
-    bool keyDown(int key) const;     // held this frame
-    bool keyPressed(int key) const;  // went down on this frame only
+    bool keyDown(int key) const;
+    bool keyPressed(int key) const;
 
-    // Mouse state for the camera: held buttons (GLFW_MOUSE_BUTTON_*), cursor movement in
-    // pixels since the previous frame and the wheel movement of this frame.
     bool mouseDown(int button) const;
     float mouseDX() const { return mouseDX_; }
     float mouseDY() const { return mouseDY_; }
     float scrollY() const { return scrollY_; }
-    void addScroll(double dy) { scrollPending_ += dy; }  // called from the GLFW callback
+    void addScroll(double dy) { scrollPending_ += dy; }
 
     float dt() const { return dt_; }
     float time() const { return time_; }
@@ -37,7 +37,7 @@ public:
     int height() const { return height_; }
     float aspect() const;
     void setTitle(const std::string& title);
-    void setVsync(bool on);  // swap interval 1 (synced to the display) or 0 (unlimited)
+    void setVsync(bool on);
 
 private:
     static const int KEY_COUNT = 512;
@@ -58,9 +58,8 @@ private:
     float scrollY_ = 0.0f;
 };
 
-// Grabs the back framebuffer into a binary PPM (handy for the report).
 bool saveScreenshot(const std::string& path, int width, int height);
 
-}  // namespace engine
+}
 
 #endif

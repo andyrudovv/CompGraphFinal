@@ -1,3 +1,7 @@
+// Lane Runner game. Builds the scene, runs traffic, collisions, particles, jump, day/night
+// cycle, cameras and input on a fixed 120 Hz step, then renders the world, the Bezier hills
+// and the HUD.
+
 #include "game.h"
 
 #include <GLFW/glfw3.h>
@@ -11,11 +15,13 @@
 
 namespace game {
 
-    // Shown on screen and in the window title; must match the report and the topic sheet.
     static const char* const TOPIC_TITLE = "LANE RUNNER: DYNAMIC DAY/NIGHT LIGHTING";
     static const char* const TEAM_LINE = "TEAM MOGGERS - RUDOV / YUN / MUKHAMED-RAKHYM / TUTKYSHBAEVA";
 
     static const float LANE_WIDTH = 3.4f;
+    static const float JUMP_SPEED = 10.0f;
+    static const float GRAVITY = 22.0f;
+    static const float JUMP_COOLDOWN = 2.5f;
     static const float ROAD_HALF = LANE_WIDTH * LANE_COUNT * 0.5f + 1.1f;
     static const float ROAD_LENGTH = 900.0f;
     static const float SPAWN_Z = -185.0f;
@@ -26,27 +32,21 @@ namespace game {
     static const float CAR_HALF_X = 0.95f;
     static const float CAR_HALF_Z = 2.1f;
     static const float WHEEL_RADIUS = 0.36f;
-    static const float DAY_CYCLE = 90.0f;  // seconds for a full day/night rotation
+    static const float DAY_CYCLE = 90.0f;
     static const float TWO_PI = 6.28318530718f;
 
-    // How many metres one repeat of each texture covers. The road, grass and curb
-    // textures scroll with the travelled distance; one facade tile is a 4 x 4 block
-    // of windows (2.4 m wide, 3.2 m tall each).
     static const float ASPHALT_TILE = 4.0f;
     static const float GRASS_TILE = 8.0f;
     static const float CURB_TILE = 3.0f;
     static const float FACADE_TILE_W = 9.6f;
     static const float FACADE_TILE_H = 12.8f;
 
-    // Texture offset for a surface that slides under the car: the fractional part of
-    // distance / tile keeps the number small, the texture repeats anyway.
     static float scrollOffset(float distance, float tileMetres) {
         return std::fmod(distance / tileMetres, 1.0f);
     }
 
     static float lanePosition(int lane) { return (lane - 1) * LANE_WIDTH; }
 
-    // Axis-aligned half extents of a box that may be rotated around Y (wrecks spin).
     static void boxExtents(float halfX, float halfZ, float yaw, float& hx, float& hz) {
         float s = std::fabs(std::sin(yaw));
         float k = std::fabs(std::cos(yaw));
@@ -58,7 +58,6 @@ namespace game {
         boxExtents(c.halfX, c.halfZ, c.yaw, hx, hz);
     }
 
-    // Trucks are heavier: in a crash they push sedans around, not the other way.
     static float massOf(const TrafficCar& c) { return c.type == 1 ? 3.0f : 1.0f; }
 
     static const glm::vec3 PLAYER_COLOR(0.90f, 0.15f, 0.12f);
@@ -89,8 +88,6 @@ namespace game {
         }
         buildMeshes();
 
-        // Downloaded models are optional (see engine/objloader.h): put them in models/.
-        // If a file is missing the built-in box car is drawn instead.
         engine::ObjOptions carOpt;
         carOpt.length = CAR_HALF_Z * 2.0f;
         carModel_ = engine::loadObjModel("models/car.obj", carOpt, carModelPaint_, carModelRest_);
@@ -125,6 +122,10 @@ namespace game {
         playerLane_ = 1;
         playerX_ = lanePosition(playerLane_);
         playerRoll_ = 0.0f;
+        playerY_ = 0.0f;
+        playerVy_ = 0.0f;
+        jumpCooldown_ = 0.0f;
+        jumpRequest_ = false;
         playerYaw_ = 0.0f;
         playerYawVel_ = 0.0f;
         playerVx_ = 0.0f;
@@ -149,9 +150,6 @@ namespace game {
         b.plane(I, 1600.0f, 1600.0f, glm::vec3(0.12f, 0.25f, 0.11f));
         b.build(ground_);
 
-        // Road surface and edge lines share one mesh: the road never moves, only its
-        // texture is scrolled. The worn-paint look of the lines comes from the same
-        // asphalt texture.
         b.clear();
         b.uvPerMeter(1.0f / ASPHALT_TILE);
         b.plane(glm::translate(I, glm::vec3(0.0f, 0.02f, 0.0f)), ROAD_HALF * 2.0f, ROAD_LENGTH,
@@ -163,7 +161,6 @@ namespace game {
         }
         b.build(road_);
 
-        // Curbs are a separate mesh so they can use the concrete texture.
         b.clear();
         b.uvPerMeter(1.0f / CURB_TILE);
         for (int s = -1; s <= 1; s += 2) {
@@ -172,7 +169,6 @@ namespace game {
         }
         b.build(curb_);
 
-        // One "dash" holds both lane separators, so a row of markings is one draw call.
         b.clear();
         for (int s = -1; s <= 1; s += 2) {
             b.box(glm::translate(I, glm::vec3(s * LANE_WIDTH * 0.5f, 0.03f, 0.0f)),
@@ -180,8 +176,6 @@ namespace game {
         }
         b.build(dash_);
 
-        // ---------------------------------------------------------------- sedan
-        // Car, local frame: origin on the ground, forward is -Z.
         b.clear();
         b.box(glm::translate(I, glm::vec3(0.0f, 0.55f, 0.0f)), glm::vec3(1.9f, 0.7f, 4.2f),
             glm::vec3(1.0f));
@@ -189,7 +183,6 @@ namespace game {
             glm::vec3(1.0f));
         b.build(carBody_);
 
-        // Trim: bumpers, glass, grille, mirrors (the wheels are a separate, spinning mesh).
         const glm::vec3 glass(0.08f, 0.12f, 0.16f);
         b.clear();
         for (int sz = -1; sz <= 1; sz += 2) {
@@ -197,21 +190,19 @@ namespace game {
                 glm::vec3(1.94f, 0.34f, 0.12f), glm::vec3(0.18f, 0.18f, 0.20f));
         }
         b.box(glm::translate(I, glm::vec3(0.0f, 1.06f, -0.82f)), glm::vec3(1.42f, 0.5f, 0.06f),
-            glass);  // windscreen
+            glass);
         b.box(glm::translate(I, glm::vec3(0.0f, 1.06f, 1.16f)), glm::vec3(1.36f, 0.44f, 0.06f),
-            glass);  // rear window
+            glass);
         for (int sx = -1; sx <= 1; sx += 2) {
-            // side windows (tune x if they sink into / float off the cabin wedge)
             b.box(glm::translate(I, glm::vec3(sx * 0.80f, 1.06f, 0.15f)),
                 glm::vec3(0.05f, 0.40f, 1.55f), glass);
-            // mirrors
             b.box(glm::translate(I, glm::vec3(sx * 0.92f, 0.95f, -0.78f)),
                 glm::vec3(0.16f, 0.10f, 0.18f), glm::vec3(0.12f));
         }
         b.box(glm::translate(I, glm::vec3(0.0f, 0.52f, -2.20f)), glm::vec3(1.0f, 0.14f, 0.05f),
-            glm::vec3(0.05f));  // grille
+            glm::vec3(0.05f));
         b.box(glm::translate(I, glm::vec3(0.0f, 0.28f, 0.0f)), glm::vec3(1.7f, 0.12f, 4.0f),
-            glm::vec3(0.06f));  // under-body shadow strip
+            glm::vec3(0.06f));
         b.build(carTrim_);
 
         b.clear();
@@ -225,9 +216,6 @@ namespace game {
         }
         b.build(carTail_);
 
-        // One wheel at the origin, rolling around the X axis. The tyre is dark, the rim is
-        // light and carries six dark spokes, so the rotation is actually visible.
-        // (Assumes MeshBuilder::cylinder has its axis along X, as the old wheels did.)
         b.clear();
         b.cylinder(I, WHEEL_RADIUS, 0.26f, 16, glm::vec3(0.07f, 0.07f, 0.08f));
         b.cylinder(I, 0.24f, 0.28f, 12, glm::vec3(0.62f, 0.64f, 0.68f));
@@ -237,7 +225,6 @@ namespace game {
         }
         b.build(wheel_);
 
-        // Extras that only the player's car has: rear wing and two racing stripes.
         b.clear();
         b.box(glm::translate(I, glm::vec3(0.0f, 1.30f, 1.95f)), glm::vec3(1.7f, 0.06f, 0.5f),
             glm::vec3(0.08f, 0.08f, 0.09f));
@@ -245,14 +232,12 @@ namespace game {
             b.box(glm::translate(I, glm::vec3(sx * 0.55f, 1.10f, 1.95f)),
                 glm::vec3(0.06f, 0.40f, 0.12f), glm::vec3(0.08f, 0.08f, 0.09f));
             b.box(glm::translate(I, glm::vec3(sx * 0.18f, 0.908f, -1.45f)),
-                glm::vec3(0.22f, 0.012f, 1.3f), glm::vec3(0.95f));  // hood stripe
+                glm::vec3(0.22f, 0.012f, 1.3f), glm::vec3(0.95f));
             b.box(glm::translate(I, glm::vec3(sx * 0.18f, 0.908f, 1.55f)),
-                glm::vec3(0.22f, 0.012f, 0.9f), glm::vec3(0.95f));  // trunk stripe
+                glm::vec3(0.22f, 0.012f, 0.9f), glm::vec3(0.95f));
         }
         b.build(playerKit_);
 
-        // ---------------------------------------------------------------- truck
-        // 6.2 m long, 2.2 m wide: cab in front (-Z), cargo box behind it.
         b.clear();
         b.box(glm::translate(I, glm::vec3(0.0f, 1.45f, -2.2f)), glm::vec3(2.0f, 1.5f, 1.8f),
             glm::vec3(1.0f));
@@ -265,27 +250,23 @@ namespace game {
 
         b.clear();
         b.box(glm::translate(I, glm::vec3(0.0f, 0.45f, 0.0f)), glm::vec3(2.0f, 0.5f, 6.2f),
-            glm::vec3(0.15f, 0.15f, 0.17f));  // chassis
+            glm::vec3(0.15f, 0.15f, 0.17f));
         b.box(glm::translate(I, glm::vec3(0.0f, 1.75f, -3.1f)), glm::vec3(1.6f, 0.65f, 0.06f),
-            glass);  // windscreen
+            glass);
         b.box(glm::translate(I, glm::vec3(0.0f, 0.45f, -3.14f)), glm::vec3(2.04f, 0.3f, 0.1f),
-            glm::vec3(0.2f));  // front bumper
+            glm::vec3(0.2f));
         b.box(glm::translate(I, glm::vec3(0.0f, 0.45f, 3.14f)), glm::vec3(2.04f, 0.3f, 0.1f),
-            glm::vec3(0.2f));  // rear bumper
+            glm::vec3(0.2f));
         b.build(truckTrim_);
 
-        // Spark: a tiny cube, drawn emissive.
         b.clear();
         b.box(I, glm::vec3(0.12f), glm::vec3(1.0f));
         b.build(spark_);
 
-        // Debris shard: a unit box, every piece scales it to its own size.
         b.clear();
         b.box(I, glm::vec3(1.0f), glm::vec3(1.0f));
         b.build(shard_);
 
-        // ---------------------------------------------------------------- props
-        // Street lamp: the arm points towards +X, the model matrix mirrors it per side.
         b.clear();
         b.box(glm::translate(I, glm::vec3(0.0f, 3.0f, 0.0f)), glm::vec3(0.18f, 6.0f, 0.18f),
             glm::vec3(0.30f, 0.31f, 0.33f));
@@ -307,9 +288,6 @@ namespace game {
             glm::vec3(0.16f, 0.38f, 0.16f));
         b.build(tree_);
 
-        // Unit-cube tower: the UVs span 0..1 per wall, and render() scales them by
-        // width / FACADE_TILE_W and height / FACADE_TILE_H, so windows keep their size
-        // on towers of any dimension.
         b.clear();
         b.facadeLayout(true);
         b.box(glm::translate(I, glm::vec3(0.0f, 0.5f, 0.0f)), glm::vec3(1.0f, 1.0f, 1.0f),
@@ -321,10 +299,6 @@ namespace game {
             glm::vec3(0.35f, 0.35f, 0.38f));
         b.build(buildingRoof_);
 
-        // Roadside hill: one bicubic Bezier patch over x, z in [-1, 1]. All 12 border
-        // control points are at height 0, and the border curves of a Bezier patch depend
-        // only on its border points, so the hill meets the flat ground without a seam.
-        // The four inner points lift the middle. Every hill scales this unit patch.
         static const float G[4] = { -1.0f, -1.0f / 3.0f, 1.0f / 3.0f, 1.0f };
         static const float H[4][4] = {
             { 0.0f, 0.0f, 0.0f, 0.0f },
@@ -377,7 +351,6 @@ namespace game {
             }
         }
 
-        // Hills stand behind the trees and towers, about one every 60 m on each side.
         for (float z = DESPAWN_Z; z > DESPAWN_Z - PROP_SPAN; z -= 60.0f) {
             for (int s = -1; s <= 1; s += 2) {
                 Prop h;
@@ -396,7 +369,6 @@ namespace game {
 
     void Game::update(engine::Window& window) {
         if (window.keyPressed(GLFW_KEY_F1) || window.keyPressed(GLFW_KEY_H)) showHelp_ = !showHelp_;
-        // C cycles chase -> free-fly -> orbit -> chase. Free flight starts from the current view.
         if (window.keyPressed(GLFW_KEY_C)) {
             if (cameraMode_ == CameraMode::Chase) {
                 cameraMode_ = CameraMode::Free;
@@ -411,7 +383,6 @@ namespace game {
                 cameraMode_ = CameraMode::Chase;
             }
         }
-        // Input edges are consumed once per rendered frame, not per physics step.
         if (window.keyPressed(GLFW_KEY_1)) { setDayTime(0.25f); dayCycle_ = false; }
         if (window.keyPressed(GLFW_KEY_2)) { setDayTime(0.48f); dayCycle_ = false; }
         if (window.keyPressed(GLFW_KEY_3)) { setDayTime(0.75f); dayCycle_ = false; }
@@ -420,8 +391,6 @@ namespace game {
         if (window.keyPressed(GLFW_KEY_B)) hills_ = !hills_;
         if (window.keyPressed(GLFW_KEY_V)) { vsync_ = !vsync_; window.setVsync(vsync_); }
 
-        // Manual light control, also while paused: [ and ] turn the sun around the
-        // vertical axis, - and = move it along its daily arc (this stops the cycle).
         const float rdt = std::min(window.dt(), 0.1f);
         sunYaw_ += glm::radians(60.0f) * rdt *
             (int(window.keyDown(GLFW_KEY_RIGHT_BRACKET)) - int(window.keyDown(GLFW_KEY_LEFT_BRACKET)));
@@ -432,7 +401,6 @@ namespace game {
             dayCycle_ = false;
         }
 
-
         if (window.keyPressed(GLFW_KEY_ESCAPE)) window.close();
         if (!showHelp_ && window.keyPressed(GLFW_KEY_P)) paused_ = !paused_;
         if (!showHelp_ && window.keyPressed(GLFW_KEY_R)) {
@@ -441,6 +409,7 @@ namespace game {
         }
 
         const bool gamePaused = paused_ || showHelp_;
+        if (!gamePaused && state_ == State::Playing && window.keyPressed(GLFW_KEY_SPACE)) jumpRequest_ = true;
         if (!gamePaused && state_ == State::Playing &&
             (window.keyPressed(GLFW_KEY_LEFT) || window.keyPressed(GLFW_KEY_A))) {
             playerLane_ = std::max(playerLane_ - 1, 0);
@@ -467,18 +436,17 @@ namespace game {
                 score_ = static_cast<int>(distance_ * 0.5f) + overtakes_ * 25;
             }
             else {
-                // Roll to a stop, keep the world alive so the scene still reads as 3D.
                 speed_ = std::max(speed_ - 26.0f * dt, 0.0f);
                 crashFlash_ = std::max(crashFlash_ - dt * 0.9f, 0.0f);
                 updateWorld(dt);
-                updateTraffic(dt);  // the pile-up keeps developing behind the crash
+                updateTraffic(dt);
 
-                // The player's wreck slides sideways and spins, then settles.
                 playerX_ += playerVx_ * dt;
                 playerVx_ *= std::exp(-2.2f * dt);
                 playerX_ = glm::clamp(playerX_, -(ROAD_HALF + 0.8f), ROAD_HALF + 0.8f);
                 playerYaw_ += playerYawVel_ * dt;
                 playerYawVel_ *= std::exp(-1.1f * dt);
+                updateJump(dt);
             }
 
             wheelAngle_ = std::fmod(wheelAngle_ + speed_ * dt / WHEEL_RADIUS, TWO_PI);
@@ -489,13 +457,12 @@ namespace game {
             updateDayNight(dayCycle_ ? dt : 0.0f);
         }
         updateDayNight(0.0f);
-        sedanRig_.root.updateWorld(playerMatrix());  // the headlight spots follow the car
+        sedanRig_.root.updateWorld(playerMatrix());
         collectLights();
 
-        // Chase camera: it leans with the lane change and drifts back when quick.
         float t = static_cast<float>(window.time());
         float shake = (state_ == State::Playing) ? std::sin(elapsed_ * 31.0f) * speed_ * 0.0015f : 0.0f;
-        float hit = shakeTime_ * shakeTime_ * 0.45f;  // impact shake
+        float hit = shakeTime_ * shakeTime_ * 0.45f;
         camera_.aspect = window.aspect();
         const bool dragging = window.mouseDown(GLFW_MOUSE_BUTTON_LEFT) || window.mouseDown(GLFW_MOUSE_BUTTON_RIGHT);
         if (cameraMode_ == CameraMode::Chase) {
@@ -506,8 +473,6 @@ namespace game {
             camera_.fovDegrees = 60.0f + std::min(speed_, 70.0f) * 0.14f;
         }
         else if (cameraMode_ == CameraMode::Orbit) {
-            // Orbit around the car: drag with the mouse to rotate, wheel (or Z/X) to zoom,
-            // Q/E rotate from the keyboard. Driving keys keep working in this mode.
             const float dt = window.dt();
             if (dragging) {
                 orbitYaw_ -= window.mouseDX() * 0.006f;
@@ -526,9 +491,6 @@ namespace game {
             camera_.fovDegrees = 60.0f;
         }
         else {
-            // Free-fly: hold a mouse button and move the mouse to look,
-            // IJKL fly, Q/E down/up, Shift is fast, the wheel flies forward/back.
-            // WASD and arrows remain available for driving.
             const float dt = window.dt();
             if (dragging) {
                 cameraYaw_ += window.mouseDX() * 0.0035f;
@@ -547,7 +509,7 @@ namespace game {
                 camera_.position += glm::normalize(movement) * (fast ? 60.0f : 15.0f) * dt;
             }
             camera_.position += forward * window.scrollY() * 2.0f;
-            camera_.position.y = std::max(camera_.position.y, 0.3f);  // stay above the ground
+            camera_.position.y = std::max(camera_.position.y, 0.3f);
             camera_.target = camera_.position + forward;
             camera_.fovDegrees = 60.0f;
         }
@@ -570,6 +532,27 @@ namespace game {
         float lateral = dt > 0.0f ? (playerX_ - previous) / dt : 0.0f;
         playerRoll_ += (glm::clamp(-lateral * 0.035f, -0.25f, 0.25f) - playerRoll_) *
             std::min(dt * 9.0f, 1.0f);
+
+        jumpCooldown_ = std::max(jumpCooldown_ - dt, 0.0f);
+        if (jumpRequest_) {
+            if (playerY_ <= 0.0f && jumpCooldown_ <= 0.0f) {
+                playerVy_ = JUMP_SPEED;
+                jumpCooldown_ = JUMP_COOLDOWN;
+            }
+            jumpRequest_ = false;
+        }
+        updateJump(dt);
+    }
+
+    void Game::updateJump(float dt) {
+        if (playerY_ <= 0.0f && playerVy_ <= 0.0f) return;
+        playerVy_ -= GRAVITY * dt;
+        playerY_ += playerVy_ * dt;
+        if (playerY_ <= 0.0f) {
+            playerY_ = 0.0f;
+            playerVy_ = 0.0f;
+            shakeTime_ = std::max(shakeTime_, 0.3f);
+        }
     }
 
     void Game::updateTraffic(float dt) {
@@ -589,8 +572,6 @@ namespace game {
             car.hitTimer = std::max(car.hitTimer - dt, 0.0f);
 
             if (car.wrecked) {
-                // Friction kills the forward speed, the car slides towards its shoulder
-                // (so a wreck never walls off the whole road for long) and spins.
                 car.speed = std::max(car.speed - 14.0f * dt, 0.0f);
                 float target = car.slideDir * (ROAD_HALF + 2.2f);
                 car.vx += ((target - car.x) * 1.4f - car.vx) * std::min(dt * 4.0f, 1.0f);
@@ -600,12 +581,10 @@ namespace game {
                 car.braking = false;
             }
             else {
-                // 1. Find the closest car ahead that overlaps our lane (lane-change aware).
                 const TrafficCar* leader = nullptr;
                 float leaderGap = 1e9f;
                 for (const auto& o : traffic_) {
                     if (&o == &car || o.z >= car.z) continue;
-                    // A spinning wreck is wider than its lane, use its rotated box.
                     float ohx, ohz;
                     halfExtents(o, ohx, ohz);
                     if (std::fabs(o.x - car.x) > car.halfX + ohx + 0.1f) continue;
@@ -616,8 +595,6 @@ namespace game {
                     }
                 }
 
-                // 2. Adaptive cruise: keep a safe gap that grows with the closing speed
-                //    (stopping distance at 8 m/s^2), otherwise return to the cruise speed.
                 float desired = car.cruise;
                 if (leader) {
                     float closing = std::max(car.speed - leader->speed, 0.0f);
@@ -631,7 +608,6 @@ namespace game {
                 if (dv < 0.0f) car.speed += std::max(dv, -10.0f * dt);
                 else car.speed += std::min(dv, 4.0f * dt);
 
-                // 3. Lane switching keeps late levels unpredictable.
                 car.changeCooldown -= dt;
                 if (level >= 3 && !car.braking && car.lane == car.targetLane &&
                     car.changeCooldown <= 0.0f && car.z < -25.0f) {
@@ -647,7 +623,6 @@ namespace game {
                 float targetX = lanePosition(car.targetLane);
                 car.x += (targetX - car.x) * std::min(dt * 2.2f, 1.0f);
                 if (std::fabs(targetX - car.x) < 0.05f) car.lane = car.targetLane;
-                // The car leans into the lane change.
                 car.yaw = -glm::clamp((targetX - car.x) * 0.10f, -0.2f, 0.2f);
             }
 
@@ -666,8 +641,6 @@ namespace game {
             traffic_.end());
     }
 
-    // Puts a car into the wreck state, or just kicks one that is already wrecked.
-    // side: -1 pushes it to the left shoulder, +1 to the right one.
     void Game::wreck(TrafficCar& c, float side) {
         if (!c.wrecked) {
             c.wrecked = true;
@@ -678,11 +651,6 @@ namespace game {
     }
 
     void Game::resolveTrafficCollisions() {
-        // Cars are solid boxes. Every overlapping pair (wrecks included) is pushed
-        // apart and trades speed like an inelastic hit, so nothing drives through
-        // anything any more. An intact car that touches anything still becomes a
-        // wreck, which keeps the chain pile-ups. Two passes settle a pile-up where
-        // one push creates a new overlap; effects only happen in the first pass.
         const float RESTITUTION = 0.3f;
 
         for (int pass = 0; pass < 2; ++pass) {
@@ -696,18 +664,17 @@ namespace game {
                     halfExtents(b, bhx, bhz);
                     float dx = b.x - a.x;
                     float dz = b.z - a.z;
-                    float ox = ahx + bhx - std::fabs(dx);  // overlap along X
-                    float oz = ahz + bhz - std::fabs(dz);  // overlap along Z
+                    float ox = ahx + bhx - std::fabs(dx);
+                    float oz = ahz + bhz - std::fabs(dz);
                     if (ox <= 0.0f || oz <= 0.0f) continue;
 
                     float ma = massOf(a), mb = massOf(b);
-                    float wa = mb / (ma + mb);  // share of the push: the lighter car moves more
+                    float wa = mb / (ma + mb);
                     float wb = ma / (ma + mb);
                     float impact = 0.0f;
 
                     if (ox < oz) {
-                        // Side contact: separate along X.
-                        float s = (dx >= 0.0f) ? 1.0f : -1.0f;  // +1: b is right of a
+                        float s = (dx >= 0.0f) ? 1.0f : -1.0f;
                         a.x -= s * ox * wa;
                         b.x += s * ox * wb;
                         float closing = (a.vx - b.vx) * s;
@@ -716,20 +683,19 @@ namespace game {
                             a.vx -= s * jx / ma;
                             b.vx += s * jx / mb;
                         }
-                        if (pass == 0) {  // small bounce so they do not stay glued together
+                        if (pass == 0) {
                             a.vx -= s * 1.5f * wa;
                             b.vx += s * 1.5f * wb;
                         }
                         impact = std::max(closing, 0.0f) + 2.0f;
                     }
                     else {
-                        // Front/rear contact: separate along Z (larger z = further behind).
-                        float s = (dz >= 0.0f) ? 1.0f : -1.0f;  // +1: b is behind a
+                        float s = (dz >= 0.0f) ? 1.0f : -1.0f;
                         a.z -= s * oz * wa;
                         b.z += s * oz * wb;
                         TrafficCar& rear = (s > 0.0f) ? b : a;
                         TrafficCar& front = (s > 0.0f) ? a : b;
-                        float closing = rear.speed - front.speed;  // own forward speeds
+                        float closing = rear.speed - front.speed;
                         if (closing > 0.0f) {
                             float mr = massOf(rear), mf = massOf(front);
                             float jz = closing * (1.0f + RESTITUTION) / (1.0f / mr + 1.0f / mf);
@@ -741,13 +707,11 @@ namespace game {
 
                     if (pass > 0) continue;
 
-                    // Wrecks resting against each other only get pushed; a fresh crash
-                    // or a hard knock spins them and throws sparks and debris.
                     bool fresh = !a.wrecked || !b.wrecked;
                     bool hard = impact > 3.0f && a.hitTimer <= 0.0f && b.hitTimer <= 0.0f;
                     if (!fresh && !hard) continue;
 
-                    float side = (dx >= 0.0f) ? -1.0f : 1.0f;  // a is pushed away from b
+                    float side = (dx >= 0.0f) ? -1.0f : 1.0f;
                     if (std::fabs(dx) < 0.3f) side = randRange(0.0f, 1.0f) < 0.5f ? -1.0f : 1.0f;
                     wreck(a, side);
                     wreck(b, -side);
@@ -765,8 +729,6 @@ namespace game {
             }
         }
 
-        // After the player has crashed, his wreck is a solid obstacle as well. It is
-        // treated as very heavy: the traffic car does all of the moving.
         if (state_ == State::Crashed) {
             float phx, phz;
             boxExtents(CAR_HALF_X, CAR_HALF_Z, playerYaw_, phx, phz);
@@ -774,7 +736,7 @@ namespace game {
                 float hx, hz;
                 halfExtents(c, hx, hz);
                 float dx = c.x - playerX_;
-                float dz = c.z;  // the player sits at z = 0
+                float dz = c.z;
                 float ox = hx + phx - std::fabs(dx);
                 float oz = hz + phz - std::fabs(dz);
                 if (ox <= 0.0f || oz <= 0.0f) continue;
@@ -785,9 +747,8 @@ namespace game {
                     if (c.vx * s < 0.0f) c.vx = -c.vx * 0.3f;
                 }
                 else {
-                    float s = (dz >= 0.0f) ? 1.0f : -1.0f;  // +1: car is behind the player
+                    float s = (dz >= 0.0f) ? 1.0f : -1.0f;
                     c.z += s * oz;
-                    // Match speeds so the car stops pressing into the wreck.
                     if (s > 0.0f) c.speed = std::min(c.speed, speed_);
                     else c.speed = std::max(c.speed, speed_);
                 }
@@ -817,7 +778,6 @@ namespace game {
         int lane = static_cast<int>(randRange(0.0f, static_cast<float>(LANE_COUNT) - 0.001f));
         if (laneBlocked(lane, z, 30.0f)) return;
 
-        // Never close every lane at once: the player must always have an escape.
         int freeLanes = 0;
         for (int l = 0; l < LANE_COUNT; ++l) {
             if (l != lane && !laneBlocked(l, z, 24.0f)) ++freeLanes;
@@ -857,9 +817,8 @@ namespace game {
     void Game::updateSparks(float dt) {
         for (Spark& s : sparks_) {
             s.vel.y -= 16.0f * dt;
-            // The world scrolls towards the camera at speed_, so add it to z.
             s.pos += glm::vec3(s.vel.x, s.vel.y, s.vel.z + speed_) * dt;
-            if (s.pos.y < 0.03f) {  // bounce on the asphalt
+            if (s.pos.y < 0.03f) {
                 s.pos.y = 0.03f;
                 s.vel.y = std::fabs(s.vel.y) * 0.3f;
                 s.vel.x *= 0.7f;
@@ -885,7 +844,7 @@ namespace game {
             else {
                 d.size = glm::vec3(randRange(0.15f, 0.45f), randRange(0.03f, 0.07f),
                     randRange(0.12f, 0.35f));
-                d.color = paint * randRange(0.7f, 1.0f);  // a bit darker: scratched paint
+                d.color = paint * randRange(0.7f, 1.0f);
             }
             d.pos = p + glm::vec3(randRange(-0.6f, 0.6f), randRange(0.0f, 0.4f), randRange(-0.6f, 0.6f));
             d.vel = glm::vec3(randRange(-1.0f, 1.0f) * power * 0.45f,
@@ -903,7 +862,7 @@ namespace game {
     void Game::updateDebris(float dt) {
         for (Debris& d : debris_) {
             d.life -= dt;
-            if (d.resting) {  // lying on the road: it scrolls away with the asphalt
+            if (d.resting) {
                 d.pos.z += speed_ * dt;
                 continue;
             }
@@ -914,19 +873,19 @@ namespace game {
             float floor = 0.03f + d.size.y * 0.5f;
             if (d.pos.y < floor) {
                 d.pos.y = floor;
-                if (d.vel.y < 0.0f) {  // bounce
+                if (d.vel.y < 0.0f) {
                     d.vel.y = -d.vel.y * 0.3f;
                     d.vel.x *= 0.6f;
                     d.vel.z *= 0.6f;
                     d.spin *= 0.5f;
                 }
-                float scrape = std::exp(-5.0f * dt);  // sliding friction on the asphalt
+                float scrape = std::exp(-5.0f * dt);
                 d.vel.x *= scrape;
                 d.vel.z *= scrape;
                 if (d.vel.y < 0.6f && std::fabs(d.vel.x) + std::fabs(d.vel.z) < 0.8f) {
                     d.resting = true;
                     d.vel = glm::vec3(0.0f);
-                    d.axis = glm::vec3(0.0f, 1.0f, 0.0f);  // lie flat, keep a random heading
+                    d.axis = glm::vec3(0.0f, 1.0f, 0.0f);
                     d.spin = 0.0f;
                 }
             }
@@ -951,6 +910,7 @@ namespace game {
 
     void Game::checkCollision() {
         for (auto& car : traffic_) {
+            if (playerY_ > (car.type == 1 ? 2.9f : 1.35f)) continue;
             float hx, hz;
             halfExtents(car, hx, hz);
             if (std::fabs(car.z) < hz + CAR_HALF_Z - 0.15f &&
@@ -965,11 +925,9 @@ namespace game {
                 shakeTime_ = 1.0f;
                 best_ = std::max(best_, score_);
 
-                // Player bounces away from the hit car and spins.
                 playerVx_ = -side * 3.5f;
                 playerYawVel_ = -side * randRange(1.8f, 3.2f);
 
-                // The other car is knocked forward and wrecked as well.
                 car.speed += speed_ * 0.25f;
                 wreck(car, side);
                 glm::vec3 contact(playerX_ + side * 0.9f, 0.6f, -CAR_HALF_Z);
@@ -1034,7 +992,6 @@ namespace game {
         float lightsOn = glm::smoothstep(0.25f, 0.65f, night_);
         if (lightsOn <= 0.01f) return;
 
-        // Beam axis in the lamp's frame: forward is -Z, tilted down so the cone meets the road.
         const glm::vec3 beamAxis(0.0f, -0.16f, -1.0f);
         for (const engine::Node* lamp : sedanRig_.lamps) {
             engine::SpotLight head;
@@ -1045,7 +1002,6 @@ namespace game {
             env_.spotLights.push_back(head);
         }
 
-        // Only the lamps around the car can matter; the shader takes eight lights total.
         std::vector<const Prop*> lamps;
         for (const Prop& p : props_) {
             if (p.type == Prop::Lamp && p.z > -70.0f && p.z < 12.0f) lamps.push_back(&p);
@@ -1065,7 +1021,6 @@ namespace game {
         }
     }
 
-    // Forward is -Z, so a forward roll is a negative angle around X.
     void Game::buildRigs() {
         const glm::mat4 I(1.0f);
         engine::Material trim;
@@ -1085,8 +1040,6 @@ namespace game {
             return n;
         };
 
-        // Child order is body parts, wheels, lamps, tail: the pointers are taken at the end,
-        // once the vector no longer grows.
         auto finish = [&](CarRig& rig, int parts, bool ownWheels, float wheelX, float zFront,
                           float zRear, float lampZ, float tailZ) {
             std::vector<engine::Node>& kids = rig.root.children;
@@ -1112,11 +1065,10 @@ namespace game {
 
         CarRig& car = sedanRig_;
         car.root = engine::Node();
-        car.root.mesh = carModel_ ? &carModelPaint_ : &carBody_;  // painted with the car colour
+        car.root.mesh = carModel_ ? &carModelPaint_ : &carBody_;
         car.root.children.push_back(node(carModel_ ? &carModelRest_ : &carTrim_, trim, I));
         finish(car, 1, !carModel_, 0.92f, -1.35f, 1.35f, -2.22f, 0.0f);
 
-        // The sedan's light meshes are reused, moved to the truck's front and rear faces.
         CarRig& truck = truckRig_;
         truck.root = engine::Node();
         truck.root.mesh = truckModel_ ? &truckModelPaint_ : &truckCab_;
@@ -1131,7 +1083,6 @@ namespace game {
         }
     }
 
-    // Sets the per-car state on the tree and refreshes all world matrices.
     void Game::poseRig(CarRig& rig, const glm::mat4& model, const glm::vec3& color,
         float headlights, float taillights, float wheelAngle) {
         rig.root.material.tint = color;
@@ -1166,8 +1117,9 @@ namespace game {
     }
 
     glm::mat4 Game::playerMatrix() const {
-        glm::mat4 m = glm::translate(glm::mat4(1.0f), glm::vec3(playerX_, 0.0f, 0.0f));
+        glm::mat4 m = glm::translate(glm::mat4(1.0f), glm::vec3(playerX_, playerY_, 0.0f));
         m = glm::rotate(m, playerYaw_, glm::vec3(0.0f, 1.0f, 0.0f));
+        m = glm::rotate(m, playerVy_ * 0.012f, glm::vec3(1.0f, 0.0f, 0.0f));
         return glm::rotate(m, playerRoll_, glm::vec3(0.0f, 0.0f, 1.0f));
     }
 
@@ -1253,8 +1205,6 @@ namespace game {
                 wall.specular = 0.1f;
                 wall.texture = &facadeTex_;
                 wall.uvScale = glm::vec2(p.scale / FACADE_TILE_W, p.height / FACADE_TILE_H);
-                // Shift the window pattern by whole window columns/rows, so every
-                // tower lights a different set of windows without cutting a window.
                 std::size_t id = static_cast<std::size_t>(&p - props_.data());
                 wall.uvOffset = glm::vec2(0.25f * static_cast<float>(id % 4),
                     0.25f * static_cast<float>((id / 4) % 4));
@@ -1271,7 +1221,7 @@ namespace game {
         }
 
         float now = static_cast<float>(window.time());
-        float hazard = std::sin(now * 9.0f) > 0.0f ? 1.0f : 0.0f;  // wrecks blink their hazard lights
+        float hazard = std::sin(now * 9.0f) > 0.0f ? 1.0f : 0.0f;
 
         for (const auto& car : traffic_) {
             glm::mat4 model = glm::translate(I, glm::vec3(car.x, 0.0f, car.z));
@@ -1287,14 +1237,13 @@ namespace game {
         float braking = window.keyDown(GLFW_KEY_DOWN) || window.keyDown(GLFW_KEY_S) ? 1.0f : 0.4f;
         if (state_ == State::Crashed) braking = hazard;
         drawCar(player, PLAYER_COLOR, glm::smoothstep(0.2f, 0.6f, night_), braking, wheelAngle_);
-        if (!carModel_) {  // the wing and stripes only fit the built-in body
+        if (!carModel_) {
             engine::Material kit;
             kit.specular = 0.4f;
             kit.shininess = 48.0f;
             renderer_.draw(playerKit_, player, kit);
         }
 
-        // Debris: tumbling body panels and glass, they shrink away at the end of their life.
         engine::Material shardMat;
         for (const Debris& d : debris_) {
             float k = glm::clamp(d.life * 2.0f, 0.05f, 1.0f);
@@ -1307,7 +1256,6 @@ namespace game {
             renderer_.draw(shard_, m, shardMat);
         }
 
-        // Sparks: tiny emissive cubes that shrink as they die.
         engine::Material sparkMat;
         sparkMat.tint = glm::vec3(1.0f, 0.65f, 0.2f);
         sparkMat.emissive = 1.0f;
@@ -1341,7 +1289,6 @@ namespace game {
         hud_.rect(0.0f, 0.0f, w, 74.0f, glm::vec4(0.0f, 0.0f, 0.0f, 0.28f));
         hud_.number(22.0f, 18.0f, 40.0f, score_, 7, white);
 
-        // Speed bar with the current difficulty level next to it.
         float speedFill = (speed_ - 18.0f) / 55.0f;
         hud_.bar(22.0f, 72.0f, 220.0f, 14.0f, speedFill, glm::vec4(0.35f, 0.85f, 1.0f, 0.9f));
         hud_.number(252.0f, 62.0f, 26.0f, static_cast<int>(speed_ * 3.6f), 3, glm::vec4(0.7f, 0.85f, 1.0f, 0.85f));
@@ -1349,7 +1296,6 @@ namespace game {
         hud_.number(w - 70.0f, 18.0f, 34.0f, difficultyLevel(), 2, amber);
         hud_.number(w - 150.0f, 80.0f, 22.0f, overtakes_, 3, glm::vec4(0.8f, 1.0f, 0.8f, 0.8f));
 
-        // Day/night indicator: a bar that fills as night falls.
         hud_.bar(w - 250.0f, 22.0f, 150.0f, 14.0f, night_, glm::vec4(0.45f, 0.5f, 0.95f, 0.9f));
 
         if (crashFlash_ > 0.0f) {
@@ -1359,7 +1305,6 @@ namespace game {
             hud_.rect(0.0f, h * 0.32f, w, h * 0.30f, glm::vec4(0.0f, 0.0f, 0.0f, 0.55f));
             hud_.number(w * 0.5f - 130.0f, h * 0.36f, 72.0f, score_, 7, white);
             hud_.number(w * 0.5f - 60.0f, h * 0.51f, 28.0f, best_, 7, amber);
-            // Blinking strip hints that the run can be restarted.
             float blink = 0.5f + 0.5f * std::sin(window.time() * 5.0f);
             hud_.rect(w * 0.5f - 90.0f, h * 0.585f, 180.0f, 6.0f,
                 glm::vec4(1.0f, 1.0f, 1.0f, 0.25f + 0.55f * blink));
@@ -1370,7 +1315,6 @@ namespace game {
             hud_.rect(w * 0.5f + 12.0f, h * 0.45f, 22.0f, 70.0f, white);
         }
 
-        // Scale the help panel with the framebuffer, including Retina displays.
         const float ui = std::min(w / 1200.0f, h / 700.0f);
         if (showHelp_) {
             const float panelW = 1120.0f * ui, panelH = 580.0f * ui;
@@ -1388,7 +1332,7 @@ namespace game {
             line(28, 106, "DRIVING - ALL CAMERA MODES", amber);
             line(28, 140, "A/D OR LEFT/RIGHT - CHANGE LANE", white);
             line(28, 170, "W OR UP - ACCELERATE", white);
-            line(28, 200, "S OR DOWN - BRAKE", white);
+            line(28, 200, "S OR DOWN - BRAKE   SPACE - JUMP", white);
             line(28, 240, "GENERAL", amber);
             line(28, 274, "C - CHASE > FREE-FLY > ORBIT", white);
             line(28, 304, "P - PAUSE / RESUME", white);
@@ -1417,7 +1361,6 @@ namespace game {
             hud_.rect(12 * ui, h - 34 * ui, 220 * ui, 26 * ui, glm::vec4(0, 0, 0, 0.65f));
             hud_.text(20 * ui, h - 28 * ui, 2 * ui, "F1 / H - CONTROLS", white);
         }
-        // Topic and team, centred in the top bar.
         {
             const float s = 2.0f * ui;
             float topicW = 6.0f * s * static_cast<float>(std::strlen(TOPIC_TITLE));
@@ -1425,7 +1368,6 @@ namespace game {
             hud_.text((w - topicW) * 0.5f, 14.0f * ui, s, TOPIC_TITLE, amber);
             hud_.text((w - teamW) * 0.5f, 42.0f * ui, s, TEAM_LINE, white);
         }
-        // Frame rate and frame time; VSync caps the rate at the display refresh.
         {
             char fpsText[64];
             std::snprintf(fpsText, sizeof(fpsText), "FPS: %d  %.1f MS  VSYNC: %s",
@@ -1433,7 +1375,6 @@ namespace game {
             hud_.rect(12 * ui, h - 64 * ui, 372 * ui, 26 * ui, glm::vec4(0, 0, 0, 0.65f));
             hud_.text(20 * ui, h - 58 * ui, 2 * ui, fpsText, white);
         }
-        // Keep the comparison state visible in every camera, on pause and in help.
         hud_.rect(w - 372 * ui, h - 34 * ui, 360 * ui, 26 * ui, glm::vec4(0, 0, 0, 0.65f));
         hud_.text(w - 364 * ui, h - 28 * ui, 2 * ui,
             lightingEnabled() ? "5 - DYNAMIC LIGHTING: ON" : "5 - DYNAMIC LIGHTING: OFF",
@@ -1441,4 +1382,4 @@ namespace game {
         hud_.end();
     }
 
-}  // namespace game
+}

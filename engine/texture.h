@@ -1,3 +1,5 @@
+// OpenGL texture wrapper for images generated in code.
+
 #ifndef ENGINE_TEXTURE_H
 #define ENGINE_TEXTURE_H
 
@@ -7,9 +9,6 @@
 
 namespace engine {
 
-// A 2D RGBA texture: repeat wrapping, trilinear filtering with a full mip chain
-// and, when the driver offers it, 8x anisotropic filtering. The anisotropy is
-// what keeps the asphalt crisp instead of smeared at grazing angles.
 class Texture {
 public:
     Texture() = default;
@@ -28,6 +27,6 @@ private:
     GLuint id_ = 0;
 };
 
-}  // namespace engine
+}
 
 #endif

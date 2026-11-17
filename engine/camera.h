@@ -1,3 +1,6 @@
+// Perspective camera. Builds the view matrix with lookAt and the projection matrix from the
+// field of view and the window aspect ratio.
+
 #ifndef ENGINE_CAMERA_H
 #define ENGINE_CAMERA_H
 
@@ -22,6 +25,6 @@ struct Camera {
     glm::mat4 viewProjection() const { return projection() * view(); }
 };
 
-}  // namespace engine
+}
 
 #endif

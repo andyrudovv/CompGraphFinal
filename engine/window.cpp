@@ -1,3 +1,6 @@
+// GLFW window and input. Opens the window, loads OpenGL with GLEW, reacts to resizing, reads
+// the keyboard, mouse and scroll wheel every frame and can save a screenshot.
+
 #include "window.h"
 
 #include <GL/glew.h>
@@ -24,7 +27,6 @@ Window::~Window() {
 
 bool Window::create(int width, int height, const std::string& title) {
 #ifdef GLFW_PLATFORM
-    // GLEW resolves entry points through GLX, so prefer X11/XWayland when present.
     if (glfwPlatformSupported(GLFW_PLATFORM_X11)) glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
 #endif
     if (!glfwInit()) {
@@ -55,7 +57,7 @@ bool Window::create(int width, int height, const std::string& title) {
         std::fprintf(stderr, "glewInit failed: %s\n", glewGetErrorString(err));
         return false;
     }
-    glGetError();  // GLEW leaves a spurious INVALID_ENUM behind on core profiles
+    glGetError();
 
     glfwGetFramebufferSize(handle_, &width_, &height_);
     glViewport(0, 0, width_, height_);
@@ -78,7 +80,7 @@ void Window::beginFrame() {
     time_ = glfwGetTime();
     dt_ = static_cast<float>(time_ - last_);
     last_ = time_;
-    if (dt_ > 0.1f) dt_ = 0.1f;  // bound catch-up work after a long stall
+    if (dt_ > 0.1f) dt_ = 0.1f;
 
     for (int k = GLFW_KEY_SPACE; k <= GLFW_KEY_LAST; ++k) {
         prev_[k] = curr_[k];
@@ -134,11 +136,11 @@ bool saveScreenshot(const std::string& path, int width, int height) {
     std::FILE* f = std::fopen(path.c_str(), "wb");
     if (!f) return false;
     std::fprintf(f, "P6\n%d %d\n255\n", width, height);
-    for (int y = height - 1; y >= 0; --y) {  // OpenGL reads bottom-up
+    for (int y = height - 1; y >= 0; --y) {
         std::fwrite(pixels.data() + static_cast<size_t>(y) * width * 3, 1, width * 3, f);
     }
     std::fclose(f);
     return true;
 }
 
-}  // namespace engine
+}

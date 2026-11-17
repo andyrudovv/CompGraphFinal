@@ -1,5 +1,8 @@
 #version 330 core
 
+// Sky fragment shader. Rebuilds the view ray for each pixel and draws the gradient, sun, moon
+// and stars.
+
 in vec2 vNdc;
 out vec4 fColor;
 
@@ -19,7 +22,6 @@ vec3 hash33(vec3 p) {
     return fract(sin(p) * 43758.5453);
 }
 
-// Cell-based star field: one candidate star per cell, most of them rejected.
 float stars(vec3 dir) {
     vec3 p = dir * 110.0;
     vec3 cell = floor(p);
@@ -43,8 +45,8 @@ void main() {
 
     float sunUp = smoothstep(-0.06, 0.04, uSunDir.y);
     float sunDot = dot(dir, uSunDir);
-    sky += uSunColor * pow(max(sunDot, 0.0), 220.0) * 0.6 * sunUp;        // glow
-    sky += uSunColor * smoothstep(0.9975, 0.9990, sunDot) * 1.5 * sunUp;  // disc
+    sky += uSunColor * pow(max(sunDot, 0.0), 220.0) * 0.6 * sunUp;
+    sky += uSunColor * smoothstep(0.9975, 0.9990, sunDot) * 1.5 * sunUp;
 
     float moonUp = smoothstep(-0.06, 0.04, -uSunDir.y);
     float moonDot = dot(dir, -uSunDir);
