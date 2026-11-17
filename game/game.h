@@ -48,11 +48,12 @@ namespace game {
     };
 
     struct Prop {
-        enum Type { Lamp, Tree, Building } type = Tree;
+        enum Type { Lamp, Tree, Building, Hill } type = Tree;
         float x = 0.0f;
         float z = 0.0f;
         float scale = 1.0f;
         float height = 1.0f;
+        float depth = 1.0f;   // hills only: half length along the road
         glm::vec3 color{ 1.0f };
     };
 
@@ -143,7 +144,7 @@ namespace game {
         engine::Mesh carModelPaint_, carModelRest_, truckModelPaint_, truckModelRest_;
         bool carModel_ = false;
         bool truckModel_ = false;
-        engine::Mesh lampPole_, lampHead_, tree_, building_, buildingRoof_;
+        engine::Mesh lampPole_, lampHead_, tree_, building_, buildingRoof_, hill_;
 
         // Procedural textures (generated in init, nothing is loaded from disk).
         engine::Texture grassTex_, asphaltTex_, concreteTex_, facadeTex_;
@@ -159,6 +160,7 @@ namespace game {
         bool paused_ = false;
         bool showHelp_ = false;
         bool dayCycle_ = true;
+        bool hills_ = true;      // B toggles the Bezier hills
         double accumulator_ = 0.0;
 
         // Player

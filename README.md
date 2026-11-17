@@ -19,6 +19,7 @@ Our project separates reusable rendering and platform code in `engine/` from gam
 - Procedural sky with the sun, moon, and stars; a 90-second lighting cycle; fixed day, sunset, and night presets.
 - Procedural asphalt, grass, concrete, and facade textures; mipmaps, trilinear filtering, and up to 8× anisotropic filtering when the extension is supported.
 - Hierarchical car transforms, rotating wheels, and headlights that follow the car.
+- Roadside hills built from bicubic Bezier patches with exact normals; key B shows or hides them.
 - Sedans and trucks, traffic following and braking, lane changes at later levels, collisions, sparks, and debris.
 - Fixed 120 Hz simulation, pause, restart without closing the application, on-screen help, and PPM screenshots.
 - Independent dynamic-lighting ON/OFF comparison with key 5 and a persistent HUD indicator.
@@ -138,6 +139,7 @@ Letter keys refer to a Latin keyboard layout. Driving controls remain available 
 | 3 | Set night (`t = 0.75`) and stop the automatic cycle |
 | 4 | Enable / disable automatic time-of-day progression |
 | 5 | Toggle dynamic Blinn–Phong lighting ON/OFF |
+| B | Show / hide the Bezier hills |
 | F2 | Save `screenshot.ppm` in the current working directory |
 | Esc | Close the application |
 
@@ -207,6 +209,10 @@ In `Game::updateDayNight`, time of day advances by `dt / 90`. The sun's position
 `engine/texgen.cpp` generates RGBA textures at startup. UVs are created while building meshes. Road, grass, and curb UV offsets follow the distance travelled; facade UV scales account for building dimensions. Facade alpha is an illuminated-window mask, not surface transparency.
 
 `engine::Node` computes `world = parentWorld * local`. The car hierarchy updates wheels and headlight mounts; spotlight directions are derived from the mounts' world transforms.
+
+### Bezier hills
+
+`MeshBuilder::bezierPatch` (`engine/mesh.cpp`) evaluates a bicubic Bezier surface `P(u,v) = Σ Σ B_i(u) B_j(v) P_ij` from 16 control points with the cubic Bernstein basis, on a 16×16 grid. Normals come from the cross product of the partial derivatives `∂P/∂u` and `∂P/∂v`. The 12 border control points are at height 0, so each hill meets the flat ground without a seam. One unit patch is built at startup and scaled per hill.
 
 ### Simulation
 

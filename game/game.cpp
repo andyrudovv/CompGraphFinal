@@ -313,6 +313,25 @@ namespace game {
         b.box(glm::translate(I, glm::vec3(0.0f, 1.02f, 0.0f)), glm::vec3(1.08f, 0.05f, 1.08f),
             glm::vec3(0.35f, 0.35f, 0.38f));
         b.build(buildingRoof_);
+
+        // Roadside hill: one bicubic Bezier patch over x, z in [-1, 1]. All 12 border
+        // control points are at height 0, and the border curves of a Bezier patch depend
+        // only on its border points, so the hill meets the flat ground without a seam.
+        // The four inner points lift the middle. Every hill scales this unit patch.
+        static const float G[4] = { -1.0f, -1.0f / 3.0f, 1.0f / 3.0f, 1.0f };
+        static const float H[4][4] = {
+            { 0.0f, 0.0f, 0.0f, 0.0f },
+            { 0.0f, 1.3f, 1.0f, 0.0f },
+            { 0.0f, 0.9f, 1.6f, 0.0f },
+            { 0.0f, 0.0f, 0.0f, 0.0f },
+        };
+        glm::vec3 net[16];
+        for (int i = 0; i < 4; ++i)
+            for (int j = 0; j < 4; ++j) net[4 * i + j] = glm::vec3(G[i], H[i][j], G[j]);
+        b.clear();
+        b.uvPerMeter(1.0f / GRASS_TILE * 12.0f);
+        b.bezierPatch(I, net, 16, glm::vec3(0.12f, 0.25f, 0.11f));
+        b.build(hill_);
     }
 
     void Game::buildProps() {
@@ -350,6 +369,22 @@ namespace game {
                 props_.push_back(p);
             }
         }
+
+        // Hills stand behind the trees and towers, about one every 60 m on each side.
+        for (float z = DESPAWN_Z; z > DESPAWN_Z - PROP_SPAN; z -= 60.0f) {
+            for (int s = -1; s <= 1; s += 2) {
+                Prop h;
+                h.type = Prop::Hill;
+                h.x = s * randRange(62.0f, 85.0f);
+                h.z = z + randRange(-12.0f, 12.0f);
+                h.scale = randRange(16.0f, 26.0f);
+                h.depth = randRange(22.0f, 34.0f);
+                h.height = randRange(14.0f, 26.0f);
+                float k = randRange(0.85f, 1.15f);
+                h.color = glm::vec3(k, k, k);
+                props_.push_back(h);
+            }
+        }
     }
 
     void Game::update(engine::Window& window) {
@@ -375,6 +410,7 @@ namespace game {
         if (window.keyPressed(GLFW_KEY_3)) { setDayTime(0.75f); dayCycle_ = false; }
         if (window.keyPressed(GLFW_KEY_4)) dayCycle_ = !dayCycle_;
         if (window.keyPressed(GLFW_KEY_5)) setLightingEnabled(!lightingEnabled());
+        if (window.keyPressed(GLFW_KEY_B)) hills_ = !hills_;
 
 
         if (window.keyPressed(GLFW_KEY_ESCAPE)) window.close();
@@ -1168,6 +1204,15 @@ namespace game {
                 renderer_.draw(tree_, glm::scale(model, glm::vec3(p.scale)), m);
                 break;
             }
+            case Prop::Hill: {
+                if (!hills_) break;
+                engine::Material m;
+                m.tint = p.color;
+                m.specular = 0.0f;
+                m.texture = &grassTex_;
+                renderer_.draw(hill_, glm::scale(model, glm::vec3(p.scale, p.height, p.depth)), m);
+                break;
+            }
             case Prop::Building: {
                 glm::mat4 tower = glm::scale(model, glm::vec3(p.scale, p.height, p.scale));
 
@@ -1243,6 +1288,7 @@ namespace game {
         window.setTitle(std::string("Lane Runner | 1 Day  2 Sunset  3 Night  4 Cycle: ") +
             (dayCycle_ ? "ON" : "OFF") +
             " | 5 Dynamic lighting: " + (lightingEnabled() ? "ON" : "OFF") +
+            " | B Hills: " + (hills_ ? "ON" : "OFF") +
             (cameraMode_ == CameraMode::Free
                 ? " | FREE-FLY: IJKL fly, Q/E down/up, mouse drag look, wheel fly, Shift fast, WASD/arrows drive, C next camera"
                 : cameraMode_ == CameraMode::Orbit
@@ -1319,6 +1365,7 @@ namespace game {
             line(28, 438, "1 - DAY  2 - SUNSET  3 - NIGHT", white);
             line(28, 468, "4 - TOGGLE DAY/NIGHT CYCLE", white);
             line(28, 498, "5 - TOGGLE DYNAMIC LIGHTING", white);
+            line(590, 498, "B - TOGGLE BEZIER HILLS", white);
             line(590, 106, "FREE-FLY CAMERA", amber);
             line(590, 140, "I/K - FLY FORWARD / BACKWARD", white);
             line(590, 170, "J/L - FLY LEFT / RIGHT", white);
