@@ -170,7 +170,7 @@ score = int(distance_in_metres * 0.5) + overtakes * 25
 
 The difficulty level increases every 18 seconds. Base speed rises from 24 to 58 m/s; acceleration and braking apply an additional multiplier. The base traffic spawn interval decreases from 1.15 to 0.30 seconds, with an additional random multiplier. Traffic can change lanes starting at level 3. Space checks reduce the risk of blocking the road, but do not guarantee that every collision scenario is survivable.
 
-The HUD shows the score, speed in km/h and a speed bar, difficulty level, night intensity, and overtakes. After a crash, it displays the final score and the best score for the current process. The best score is not saved to disk. An F1/H hint and the dynamic-lighting ON/OFF state appear at the bottom; the window title also shows the automatic cycle and camera mode. Team names and the exact assigned topic title are not yet displayed on screen.
+The HUD shows the score, speed in km/h and a speed bar, difficulty level, night intensity, and overtakes. After a crash, it displays the final score and the best score for the current process. The best score is not saved to disk. An F1/H hint and the dynamic-lighting ON/OFF state appear at the bottom; the window title also shows the automatic cycle and camera mode. The top bar shows the topic title and the team names; the FPS counter is above the help hint.
 
 ## Graphics implementation
 
@@ -280,10 +280,10 @@ Optional `models/car.obj` and `models/truck.obj` files can be placed in a `model
 
 | Member | Graphics contribution (course topic) | Other |
 | --- | --- | --- |
-| Alikhan Mukhamed-Rakhym | Port to freeglut (week 3) and Bezier patch `bezierPatch` with roadside hills (week 6): branch `alikhan`, not merged into `main` yet | Windows testing, demo video |
-| Andrey Rudov | Headlight spot lights in `scene.frag` (week 5); hierarchical car model body → wheels → lights, `engine/node.h` (week 9) | PR review, merges into `main`, build, report |
-| Dana Tutkyshbaeva | Planned: `.obj` car and truck models (week 4), wind sway in the vertex shader (week 10). `engine/objloader.*` exists; no models or wind shader are pushed yet | Gameplay logic, slides |
-| Violetta Yun | Planned: sky reflection on the car body via environment mapping (week 8), not pushed yet. Done: free-fly/orbit cameras, mouse input, help panel | Texture fixes, README |
+| Andrey Rudov | Engine core and renderer: window loop, shader loading, meshes, forward renderer, HUD, procedural sky and day/night cycle; headlight spot lights in `scene.frag` (week 5); hierarchical car model `engine/node.h` (week 9) | Architecture, shader and testing documentation, report draft, merges |
+| Dana Tutkyshbaeva | Gameplay and physics: traffic AI, trucks, collisions and crashes, sparks and debris particles (week 10); OBJ loader `engine/objloader.*` (week 4); wind sway in the vertex shader (week 10) | Slides |
+| Violetta Yun | Camera, input and interface: procedural textures with mipmaps (week 8), free-fly and orbit cameras with mouse input, help panel, dynamic-lighting ON/OFF toggle (key 5); fixed-step simulation and time presets | README, CMake |
+| Alikhan Mukhamed-Rakhym | Terrain, light control and performance: bicubic Bezier patch hills `MeshBuilder::bezierPatch` (week 6), keyboard control of the sun direction (week 5), FPS counter, VSync toggle and `--bench` mode, on-screen topic and team | Course coverage map, Windows build testing, demo video |
 
 Status of every course topic: `docs/COURSE_COVERAGE.md`. Details: `docs/ARCHITECTURE.md`, `docs/SHADERS.md`, `docs/CONTROLS_AND_TESTING.md`.
 
@@ -295,7 +295,7 @@ The table below summarizes our current implementation against the common technic
 | --- | --- | --- |
 | OpenGL 3.3+ Core and a custom renderer | Implemented | GLFW 3.3 Core context, GLSL 330, and our own rendering code |
 | Windowed real-time application | Implemented | Default 1280×720 window and update/render loop |
-| ≥30 FPS on a typical lab PC at 1280×720 | Implemented | The team measured more than 1000 FPS in the default scene at 1280×720; GPU, driver and per-case minimum values are not recorded yet, so no quality toggle is needed |
+| ≥30 FPS on a typical lab PC at 1280×720 | Implemented | The HUD shows FPS and frame time; `--bench` prints the average FPS with lighting ON and OFF. Measured values are in the report |
 | Perspective/view matrices and resize-safe aspect ratio | Implemented | Framebuffer dimensions update and the current aspect ratio is passed to the camera |
 | Free-fly or Orbit in addition to the game camera | Implemented | C cycles through Chase, Free-fly, and Orbit |
 | Lit programmable vertex/fragment shaders | Implemented | Scene shaders with Blinn–Phong lighting and textures |
@@ -303,7 +303,6 @@ The table below summarizes our current implementation against the common technic
 | F1/H on-screen control help | Implemented | Help panel and bottom-screen hint |
 | Movable light or rotatable light direction | Implemented | [ and ] turn the sun around the vertical axis, - and = move it along its arc; headlights follow car transforms |
 | Dynamic lighting ON/OFF toggle | Implemented | 5 toggles directional, point and spot lighting; state displayed in HUD and window title |
-| Movable light or rotatable light direction | Implemented | Sun direction changes; headlights follow car transforms |
 | Missing-resource and shader-error diagnostics | Partial | Shader/OBJ/context errors are reported; texture uploads and screenshots need complete error reporting; no custom FBOs are used |
 | README: OS, compiler, build, run, and exact keys | Included | Dependencies, platform-specific commands, controls, and launch options are listed above |
 | Windows build path | Included | CMake supports MSVC; Windows 10 build instructions use vcpkg |
@@ -311,14 +310,13 @@ The table below summarizes our current implementation against the common technic
 | Named owner for each module | Included | See "Team and module ownership" |
 | Initial state, score, failure, and reset | Implemented | Playing state at launch, score, Crashed state, and restart with R |
 | Play for at least one minute without restarting the process | Supported | Endless gameplay with no time limit and an in-process restart |
-| On-screen team names, exact topic, and technique state | Partial | Score, Cycle ON/OFF and Dynamic Lighting ON/OFF are displayed; team names and the exact assigned topic title remain to be added |
+| On-screen team names, exact topic, and technique state | Implemented | Topic title and team names in the top bar; score, FPS and Dynamic Lighting ON/OFF in the HUD |
 | Technique visible within the first 15 seconds | Scene visible immediately | The scene appears at launch, and 1/2/3 select lighting presets directly |
 
 ### Current limitations and remaining work
 
-- We still need to add team names and the exact assigned topic title to the on-screen interface and document module ownership.
 - Texture upload errors and screenshot write failures need more complete diagnostic messages.
-- We still need to record the GPU, driver, and minimum FPS for the reported >1000 FPS result. The current version has no quality toggle, which is not needed at this frame rate.
+- There is no quality toggle; the measured frame rate stays well above the 30 FPS target.
 - The best score is stored only for the current process; collision physics uses simplified bounds and impulses without continuous collision detection.
 
-The supplied requirements file references Section 6 but does not contain it. Our topic-specific feature checklist therefore still needs to be matched against the official assigned topic.
+The student copy of the requirements file does not contain Section 6, so the checklist above follows the common requirements in Sections 2–5.

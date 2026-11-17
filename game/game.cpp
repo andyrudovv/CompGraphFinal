@@ -6,9 +6,14 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <string>
 
 namespace game {
+
+    // Shown on screen and in the window title; must match the report and the topic sheet.
+    static const char* const TOPIC_TITLE = "LANE RUNNER: DYNAMIC DAY/NIGHT LIGHTING";
+    static const char* const TEAM_LINE = "TEAM MOGGERS - RUDOV / YUN / MUKHAMED-RAKHYM / TUTKYSHBAEVA";
 
     static const float LANE_WIDTH = 3.4f;
     static const float ROAD_HALF = LANE_WIDTH * LANE_COUNT * 0.5f + 1.1f;
@@ -1312,7 +1317,7 @@ namespace game {
             renderer_.draw(spark_, glm::scale(glm::translate(I, s.pos), glm::vec3(k)), sparkMat);
         }
 
-        window.setTitle(std::string("Lane Runner | 1 Day  2 Sunset  3 Night  4 Cycle: ") +
+        window.setTitle(std::string("Lane Runner - Team Moggers | 1 Day  2 Sunset  3 Night  4 Cycle: ") +
             (dayCycle_ ? "ON" : "OFF") +
             " | 5 Dynamic lighting: " + (lightingEnabled() ? "ON" : "OFF") +
             " | B Hills: " + (hills_ ? "ON" : "OFF") +
@@ -1411,6 +1416,14 @@ namespace game {
         } else {
             hud_.rect(12 * ui, h - 34 * ui, 220 * ui, 26 * ui, glm::vec4(0, 0, 0, 0.65f));
             hud_.text(20 * ui, h - 28 * ui, 2 * ui, "F1 / H - CONTROLS", white);
+        }
+        // Topic and team, centred in the top bar.
+        {
+            const float s = 2.0f * ui;
+            float topicW = 6.0f * s * static_cast<float>(std::strlen(TOPIC_TITLE));
+            float teamW = 6.0f * s * static_cast<float>(std::strlen(TEAM_LINE));
+            hud_.text((w - topicW) * 0.5f, 14.0f * ui, s, TOPIC_TITLE, amber);
+            hud_.text((w - teamW) * 0.5f, 42.0f * ui, s, TEAM_LINE, white);
         }
         // Frame rate and frame time; VSync caps the rate at the display refresh.
         {
