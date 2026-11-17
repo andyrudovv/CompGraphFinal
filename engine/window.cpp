@@ -117,6 +117,10 @@ float Window::aspect() const {
     return height_ > 0 ? static_cast<float>(width_) / static_cast<float>(height_) : 1.0f;
 }
 
+void Window::setVsync(bool on) {
+    if (handle_) glfwSwapInterval(on ? 1 : 0);
+}
+
 void Window::setTitle(const std::string& title) {
     if (handle_) glfwSetWindowTitle(handle_, title.c_str());
 }

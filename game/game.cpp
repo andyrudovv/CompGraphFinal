@@ -5,6 +5,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <string>
 
 namespace game {
 
@@ -411,6 +413,7 @@ namespace game {
         if (window.keyPressed(GLFW_KEY_4)) dayCycle_ = !dayCycle_;
         if (window.keyPressed(GLFW_KEY_5)) setLightingEnabled(!lightingEnabled());
         if (window.keyPressed(GLFW_KEY_B)) hills_ = !hills_;
+        if (window.keyPressed(GLFW_KEY_V)) { vsync_ = !vsync_; window.setVsync(vsync_); }
 
 
         if (window.keyPressed(GLFW_KEY_ESCAPE)) window.close();
@@ -1150,6 +1153,16 @@ namespace game {
     }
 
     void Game::render(engine::Window& window) {
+        if (fpsStart_ < 0.0f) fpsStart_ = window.time();
+        ++fpsFrames_;
+        float span = window.time() - fpsStart_;
+        if (span >= 0.5f) {
+            fps_ = fpsFrames_ / span;
+            frameMs_ = 1000.0f * span / fpsFrames_;
+            fpsFrames_ = 0;
+            fpsStart_ = window.time();
+        }
+
         env_.time = static_cast<float>(window.time());
         renderer_.beginFrame(camera_, env_);
         renderer_.drawSky();
@@ -1289,6 +1302,7 @@ namespace game {
             (dayCycle_ ? "ON" : "OFF") +
             " | 5 Dynamic lighting: " + (lightingEnabled() ? "ON" : "OFF") +
             " | B Hills: " + (hills_ ? "ON" : "OFF") +
+            " | FPS " + std::to_string(static_cast<int>(fps_ + 0.5f)) +
             (cameraMode_ == CameraMode::Free
                 ? " | FREE-FLY: IJKL fly, Q/E down/up, mouse drag look, wheel fly, Shift fast, WASD/arrows drive, C next camera"
                 : cameraMode_ == CameraMode::Orbit
@@ -1366,6 +1380,7 @@ namespace game {
             line(28, 468, "4 - TOGGLE DAY/NIGHT CYCLE", white);
             line(28, 498, "5 - TOGGLE DYNAMIC LIGHTING", white);
             line(590, 498, "B - TOGGLE BEZIER HILLS", white);
+            line(590, 528, "V - TOGGLE VSYNC (FPS TESTS)", white);
             line(590, 106, "FREE-FLY CAMERA", amber);
             line(590, 140, "I/K - FLY FORWARD / BACKWARD", white);
             line(590, 170, "J/L - FLY LEFT / RIGHT", white);
@@ -1382,6 +1397,14 @@ namespace game {
         } else {
             hud_.rect(12 * ui, h - 34 * ui, 220 * ui, 26 * ui, glm::vec4(0, 0, 0, 0.65f));
             hud_.text(20 * ui, h - 28 * ui, 2 * ui, "F1 / H - CONTROLS", white);
+        }
+        // Frame rate and frame time; VSync caps the rate at the display refresh.
+        {
+            char fpsText[64];
+            std::snprintf(fpsText, sizeof(fpsText), "FPS: %d  %.1f MS  VSYNC: %s",
+                static_cast<int>(fps_ + 0.5f), frameMs_, vsync_ ? "ON" : "OFF");
+            hud_.rect(12 * ui, h - 64 * ui, 372 * ui, 26 * ui, glm::vec4(0, 0, 0, 0.65f));
+            hud_.text(20 * ui, h - 58 * ui, 2 * ui, fpsText, white);
         }
         // Keep the comparison state visible in every camera, on pause and in help.
         hud_.rect(w - 372 * ui, h - 34 * ui, 360 * ui, 26 * ui, glm::vec4(0, 0, 0, 0.65f));

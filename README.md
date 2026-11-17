@@ -140,6 +140,7 @@ Letter keys refer to a Latin keyboard layout. Driving controls remain available 
 | 4 | Enable / disable automatic time-of-day progression |
 | 5 | Toggle dynamic Blinn–Phong lighting ON/OFF |
 | B | Show / hide the Bezier hills |
+| V | Toggle VSync (use OFF for FPS measurements) |
 | F2 | Save `screenshot.ppm` in the current working directory |
 | Esc | Close the application |
 
@@ -151,7 +152,7 @@ P and R are ignored while help is open. Closing help restores the previous norma
 
 **Technique comparison:** press `5` to enable or disable dynamic Blinn–Phong lighting. OFF skips directional, point, and spotlight diffuse/specular calculations; ambient light, textures, emissive surfaces, fog, and the sky remain visible as the baseline. The HUD and window title show `DYNAMIC LIGHTING: ON/OFF`. This works while paused, in help, after a crash, and in all camera modes. Restart preserves the selected lighting state. Key `4` independently freezes or resumes time-of-day progression.
 
-For a visual comparison, press `P`, select `3` for fixed night lighting, then press `5` to compare the same scene with and without dynamic lighting. Close help with F1/H if needed. For FPS measurements, use the same resolution, camera, scene, VSync setting, and measurement interval in both modes.
+For a visual comparison, press `P`, select `3` for fixed night lighting, then press `5` to compare the same scene with and without dynamic lighting. Close help with F1/H if needed. For FPS measurements, use the same resolution, camera, scene, VSync setting, and measurement interval in both modes. The HUD shows the current FPS and frame time (averaged over 0.5 s), and `--bench` prints a reproducible average, for example `laneRunner --time 0.75 --no-vsync --bench 10` and the same with `--lighting-off`.
 
 ## Gameplay and interface
 
@@ -245,6 +246,8 @@ The simulation uses a time accumulator with a fixed step of `1/120` second. Key 
 | --- | --- |
 | `--frames N` | Exit after N rendered frames when N > 0 |
 | `--shot FILE` | Save the final frame as PPM when exiting through `--frames` |
+| `--no-vsync` | Start with VSync off so the frame rate is not capped by the display |
+| `--bench S` | Skip 2 s of warm-up, measure the average FPS over S seconds, print it to the console and exit |
 | `--time T` | Set the initial time of day; the normal range is `[0, 1)` |
 | `--lighting-off` | Start with dynamic lighting disabled; key 5 can turn it back on |
 

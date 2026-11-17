@@ -86,6 +86,8 @@ namespace game {
         void setDayTime(float t);
         void setLightingEnabled(bool enabled) { env_.lightingEnabled = enabled; }
         bool lightingEnabled() const { return env_.lightingEnabled; }
+        void setVsync(bool on) { vsync_ = on; }
+        float fps() const { return fps_; }
 
     private:
         enum class State { Playing, Crashed };
@@ -161,6 +163,13 @@ namespace game {
         bool showHelp_ = false;
         bool dayCycle_ = true;
         bool hills_ = true;      // B toggles the Bezier hills
+        bool vsync_ = true;      // V toggles VSync, so FPS can be measured without the display cap
+
+        // FPS counter, averaged over half-second windows.
+        float fps_ = 0.0f;
+        float frameMs_ = 0.0f;
+        int fpsFrames_ = 0;
+        float fpsStart_ = -1.0f;
         double accumulator_ = 0.0;
 
         // Player
