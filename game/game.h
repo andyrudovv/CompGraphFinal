@@ -48,11 +48,12 @@ namespace game {
     };
 
     struct Prop {
-        enum Type { Lamp, Tree, Building } type = Tree;
+        enum Type { Lamp, Tree, Building, Hill } type = Tree;
         float x = 0.0f;
         float z = 0.0f;
         float scale = 1.0f;
         float height = 1.0f;
+        float depth = 1.0f;   // hills only: half length along the road
         glm::vec3 color{ 1.0f };
     };
 
@@ -85,6 +86,8 @@ namespace game {
         void setDayTime(float t);
         void setLightingEnabled(bool enabled) { env_.lightingEnabled = enabled; }
         bool lightingEnabled() const { return env_.lightingEnabled; }
+        void setVsync(bool on) { vsync_ = on; }
+        float fps() const { return fps_; }
 
     private:
         enum class State { Playing, Crashed };
@@ -143,7 +146,7 @@ namespace game {
         engine::Mesh carModelPaint_, carModelRest_, truckModelPaint_, truckModelRest_;
         bool carModel_ = false;
         bool truckModel_ = false;
-        engine::Mesh lampPole_, lampHead_, tree_, building_, buildingRoof_;
+        engine::Mesh lampPole_, lampHead_, tree_, building_, buildingRoof_, hill_;
 
         // Procedural textures (generated in init, nothing is loaded from disk).
         engine::Texture grassTex_, asphaltTex_, concreteTex_, facadeTex_;
@@ -159,6 +162,14 @@ namespace game {
         bool paused_ = false;
         bool showHelp_ = false;
         bool dayCycle_ = true;
+        bool hills_ = true;      // B toggles the Bezier hills
+        bool vsync_ = true;      // V toggles VSync, so FPS can be measured without the display cap
+
+        // FPS counter, averaged over half-second windows.
+        float fps_ = 0.0f;
+        float frameMs_ = 0.0f;
+        int fpsFrames_ = 0;
+        float fpsStart_ = -1.0f;
         double accumulator_ = 0.0;
 
         // Player
@@ -180,6 +191,7 @@ namespace game {
         std::vector<float> dashes_;
         float spawnTimer_ = 1.0f;
         float dayTime_ = 0.12f;  // 0..1, 0.25 is noon
+        float sunYaw_ = 0.0f;     // extra rotation of the sun around the vertical axis, [ and ] keys
         float night_ = 0.0f;
 
         std::mt19937 rng_{ 20260916u };

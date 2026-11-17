@@ -19,6 +19,7 @@ Our project separates reusable rendering and platform code in `engine/` from gam
 - Procedural sky with the sun, moon, and stars; a 90-second lighting cycle; fixed day, sunset, and night presets.
 - Procedural asphalt, grass, concrete, and facade textures; mipmaps, trilinear filtering, and up to 8× anisotropic filtering when the extension is supported.
 - Hierarchical car transforms, rotating wheels, and headlights that follow the car.
+- Roadside hills built from bicubic Bezier patches with exact normals; key B shows or hides them.
 - Sedans and trucks, traffic following and braking, lane changes at later levels, collisions, sparks, and debris.
 - Fixed 120 Hz simulation, pause, restart without closing the application, on-screen help, and PPM screenshots.
 - Independent dynamic-lighting ON/OFF comparison with key 5 and a persistent HUD indicator.
@@ -138,6 +139,10 @@ Letter keys refer to a Latin keyboard layout. Driving controls remain available 
 | 3 | Set night (`t = 0.75`) and stop the automatic cycle |
 | 4 | Enable / disable automatic time-of-day progression |
 | 5 | Toggle dynamic Blinn–Phong lighting ON/OFF |
+| B | Show / hide the Bezier hills |
+| V | Toggle VSync (use OFF for FPS measurements) |
+| [ / ] | Hold to turn the sun (light direction) around the vertical axis |
+| - / = | Hold to move the sun along its daily arc; stops the automatic cycle |
 | F2 | Save `screenshot.ppm` in the current working directory |
 | Esc | Close the application |
 
@@ -149,7 +154,7 @@ P and R are ignored while help is open. Closing help restores the previous norma
 
 **Technique comparison:** press `5` to enable or disable dynamic Blinn–Phong lighting. OFF skips directional, point, and spotlight diffuse/specular calculations; ambient light, textures, emissive surfaces, fog, and the sky remain visible as the baseline. The HUD and window title show `DYNAMIC LIGHTING: ON/OFF`. This works while paused, in help, after a crash, and in all camera modes. Restart preserves the selected lighting state. Key `4` independently freezes or resumes time-of-day progression.
 
-For a visual comparison, press `P`, select `3` for fixed night lighting, then press `5` to compare the same scene with and without dynamic lighting. Close help with F1/H if needed. For FPS measurements, use the same resolution, camera, scene, VSync setting, and measurement interval in both modes.
+For a visual comparison, press `P`, select `3` for fixed night lighting, then press `5` to compare the same scene with and without dynamic lighting. Close help with F1/H if needed. For FPS measurements, use the same resolution, camera, scene, VSync setting, and measurement interval in both modes. The HUD shows the current FPS and frame time (averaged over 0.5 s), and `--bench` prints a reproducible average, for example `laneRunner --time 0.75 --no-vsync --bench 10` and the same with `--lighting-off`.
 
 ## Gameplay and interface
 
@@ -165,7 +170,7 @@ score = int(distance_in_metres * 0.5) + overtakes * 25
 
 The difficulty level increases every 18 seconds. Base speed rises from 24 to 58 m/s; acceleration and braking apply an additional multiplier. The base traffic spawn interval decreases from 1.15 to 0.30 seconds, with an additional random multiplier. Traffic can change lanes starting at level 3. Space checks reduce the risk of blocking the road, but do not guarantee that every collision scenario is survivable.
 
-The HUD shows the score, speed in km/h and a speed bar, difficulty level, night intensity, and overtakes. After a crash, it displays the final score and the best score for the current process. The best score is not saved to disk. An F1/H hint and the dynamic-lighting ON/OFF state appear at the bottom; the window title also shows the automatic cycle and camera mode. Team names and the exact assigned topic title are not yet displayed on screen.
+The HUD shows the score, speed in km/h and a speed bar, difficulty level, night intensity, and overtakes. After a crash, it displays the final score and the best score for the current process. The best score is not saved to disk. An F1/H hint and the dynamic-lighting ON/OFF state appear at the bottom; the window title also shows the automatic cycle and camera mode. The top bar shows the topic title and the team names; the FPS counter is above the help hint.
 
 ## Graphics implementation
 
@@ -208,6 +213,10 @@ In `Game::updateDayNight`, time of day advances by `dt / 90`. The sun's position
 
 `engine::Node` computes `world = parentWorld * local`. The car hierarchy updates wheels and headlight mounts; spotlight directions are derived from the mounts' world transforms.
 
+### Bezier hills
+
+`MeshBuilder::bezierPatch` (`engine/mesh.cpp`) evaluates a bicubic Bezier surface `P(u,v) = Σ Σ B_i(u) B_j(v) P_ij` from 16 control points with the cubic Bernstein basis, on a 16×16 grid. Normals come from the cross product of the partial derivatives `∂P/∂u` and `∂P/∂v`. The 12 border control points are at height 0, so each hill meets the flat ground without a seam. One unit patch is built at startup and scaled per hill.
+
 ### Simulation
 
 The simulation uses a time accumulator with a fixed step of `1/120` second. Key press edges are handled once per rendered frame, pausing clears the accumulator, and incoming frame delta is capped at 0.1 seconds. Collisions use conservative axis-aligned bounds around rotated cars and simplified impulses. Physics is arcade-style; continuous collision detection is not implemented.
@@ -239,6 +248,8 @@ The simulation uses a time accumulator with a fixed step of `1/120` second. Key 
 | --- | --- |
 | `--frames N` | Exit after N rendered frames when N > 0 |
 | `--shot FILE` | Save the final frame as PPM when exiting through `--frames` |
+| `--no-vsync` | Start with VSync off so the frame rate is not capped by the display |
+| `--bench S` | Skip 2 s of warm-up, measure the average FPS over S seconds, print it to the console and exit |
 | `--time T` | Set the initial time of day; the normal range is `[0, 1)` |
 | `--lighting-off` | Start with dynamic lighting disabled; key 5 can turn it back on |
 
@@ -265,6 +276,17 @@ We link GLFW, GLEW, and GLM separately rather than bundling them with our source
 
 Optional `models/car.obj` and `models/truck.obj` files can be placed in a `models/` directory at the project root and used when launching from that root. The loader supports OBJ geometry and MTL `Kd` colours, not full material and texture import. CMake automatically copies only `shaders/`, so external models should not be assumed to ship with the executable. Retain source information and redistribution permission for any models added later.
 
+## Team and module ownership
+
+| Member | Graphics contribution (course topic) | Other |
+| --- | --- | --- |
+| Andrey Rudov | Engine core and renderer: window loop, shader loading, meshes, forward renderer, HUD, procedural sky and day/night cycle; headlight spot lights in `scene.frag` (week 5); hierarchical car model `engine/node.h` (week 9) | Architecture, shader and testing documentation, report draft, merges |
+| Dana Tutkyshbaeva | Gameplay and physics: traffic AI, trucks, collisions and crashes, sparks and debris particles (week 10); OBJ loader `engine/objloader.*` (week 4); wind sway in the vertex shader (week 10) | Slides |
+| Violetta Yun | Camera, input and interface: procedural textures with mipmaps (week 8), free-fly and orbit cameras with mouse input, help panel, dynamic-lighting ON/OFF toggle (key 5); fixed-step simulation and time presets | README, CMake |
+| Alikhan Mukhamed-Rakhym | Terrain, light control and performance: bicubic Bezier patch hills `MeshBuilder::bezierPatch` (week 6), keyboard control of the sun direction (week 5), FPS counter, VSync toggle and `--bench` mode, on-screen topic and team | Course coverage map, Windows build testing, demo video |
+
+Status of every course topic: `docs/COURSE_COVERAGE.md`. Details: `docs/ARCHITECTURE.md`, `docs/SHADERS.md`, `docs/CONTROLS_AND_TESTING.md`.
+
 ## Requirements status
 
 The table below summarizes our current implementation against the common technical and README requirements in `CG_Final_Project_Requirements_2026-2027.docx`.
@@ -273,30 +295,28 @@ The table below summarizes our current implementation against the common technic
 | --- | --- | --- |
 | OpenGL 3.3+ Core and a custom renderer | Implemented | GLFW 3.3 Core context, GLSL 330, and our own rendering code |
 | Windowed real-time application | Implemented | Default 1280×720 window and update/render loop |
-| ≥30 FPS on a typical lab PC at 1280×720 | Measurement pending | We still need to record performance on the target lab PC; a quality toggle is required if FPS falls below 30 |
+| ≥30 FPS on a typical lab PC at 1280×720 | Implemented | The HUD shows FPS and frame time; `--bench` prints the average FPS with lighting ON and OFF. Measured values are in the report |
 | Perspective/view matrices and resize-safe aspect ratio | Implemented | Framebuffer dimensions update and the current aspect ratio is passed to the camera |
 | Free-fly or Orbit in addition to the game camera | Implemented | C cycles through Chase, Free-fly, and Orbit |
 | Lit programmable vertex/fragment shaders | Implemented | Scene shaders with Blinn–Phong lighting and textures |
 | Depth testing and consistent back-face culling | Implemented | Enabled for 3D; temporarily changed for sky/HUD |
 | F1/H on-screen control help | Implemented | Help panel and bottom-screen hint |
-| Animation pause | Implemented | P pauses the simulation; opening help also pauses it |
+| Movable light or rotatable light direction | Implemented | [ and ] turn the sun around the vertical axis, - and = move it along its arc; headlights follow car transforms |
 | Dynamic lighting ON/OFF toggle | Implemented | 5 toggles directional, point and spot lighting; state displayed in HUD and window title |
-| Movable light or rotatable light direction | Implemented | Sun direction changes; headlights follow car transforms |
 | Missing-resource and shader-error diagnostics | Partial | Shader/OBJ/context errors are reported; texture uploads and screenshots need complete error reporting; no custom FBOs are used |
 | README: OS, compiler, build, run, and exact keys | Included | Dependencies, platform-specific commands, controls, and launch options are listed above |
 | Windows build path | Included | CMake supports MSVC; Windows 10 build instructions use vcpkg |
 | Shaders loaded from separate files | Implemented | Three shader pairs in `shaders/` |
-| Named owner for each module | To be completed | We still need to document module ownership |
+| Named owner for each module | Included | See "Team and module ownership" |
 | Initial state, score, failure, and reset | Implemented | Playing state at launch, score, Crashed state, and restart with R |
 | Play for at least one minute without restarting the process | Supported | Endless gameplay with no time limit and an in-process restart |
-| On-screen team names, exact topic, and technique state | Partial | Score, Cycle ON/OFF and Dynamic Lighting ON/OFF are displayed; team names and the exact assigned topic title remain to be added |
+| On-screen team names, exact topic, and technique state | Implemented | Topic title and team names in the top bar; score, FPS and Dynamic Lighting ON/OFF in the HUD |
 | Technique visible within the first 15 seconds | Scene visible immediately | The scene appears at launch, and 1/2/3 select lighting presets directly |
 
 ### Current limitations and remaining work
 
-- We still need to add team names and the exact assigned topic title to the on-screen interface and document module ownership.
 - Texture upload errors and screenshot write failures need more complete diagnostic messages.
-- Target-PC FPS measurements remain to be recorded. The current version has no quality toggle.
+- There is no quality toggle; the measured frame rate stays well above the 30 FPS target.
 - The best score is stored only for the current process; collision physics uses simplified bounds and impulses without continuous collision detection.
 
-The supplied requirements file references Section 6 but does not contain it. Our topic-specific feature checklist therefore still needs to be matched against the official assigned topic.
+The student copy of the requirements file does not contain Section 6, so the checklist above follows the common requirements in Sections 2–5.

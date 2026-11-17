@@ -46,6 +46,16 @@ public:
     MeshBuilder& wedge(const glm::mat4& xform, const glm::vec3& size, float topScale,
                        const glm::vec3& color);
 
+    // Bicubic Bezier patch (week 6): 16 control points, ctrl[4 * i + j] with i along
+    // u and j along v. The surface
+    //     P(u, v) = sum_i sum_j B_i(u) B_j(v) ctrl[i][j]
+    // is cut into segments x segments quads. Normals are exact, taken from the
+    // cross product of the partial derivatives dP/du and dP/dv, so the patch
+    // looks smooth however coarse the grid is. Texture coordinates are the
+    // planar (x, z) projection of the local position times uvPerMeter.
+    MeshBuilder& bezierPatch(const glm::mat4& xform, const glm::vec3* ctrl, int segments,
+                             const glm::vec3& color);
+
     // Texture coordinates are a planar projection of each face's local position,
     // picked by the dominant axis of the face normal (like one cube-map side per
     // face). The scale says how many texture repeats fit into one metre. Both

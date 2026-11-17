@@ -30,6 +30,7 @@ void Renderer::beginFrame(const Camera& camera, const Environment& env) {
     scene_.setVec3("uAmbient", env_.ambient);
     scene_.setVec3("uFogColor", env_.fogColor);
     scene_.setFloat("uFogDensity", env_.fogDensity);
+    scene_.setFloat("uTime", env_.time);
 
     int count = std::min<int>(static_cast<int>(env_.pointLights.size()), MAX_POINT_LIGHTS);
     glm::vec3 positions[MAX_POINT_LIGHTS];
@@ -102,6 +103,7 @@ void Renderer::draw(const Mesh& mesh, const glm::mat4& model, const Material& ma
     scene_.setFloat("uEmissive", material.emissive);
     scene_.setFloat("uSpecular", material.specular);
     scene_.setFloat("uShininess", material.shininess);
+    scene_.setFloat("uSway", material.sway);
 
     bool textured = material.texture && material.texture->valid();
     scene_.setInt("uUseTex", textured ? 1 : 0);

@@ -37,6 +37,7 @@ public:
     int height() const { return height_; }
     float aspect() const;
     void setTitle(const std::string& title);
+    void setVsync(bool on);  // swap interval 1 (synced to the display) or 0 (unlimited)
 
 private:
     static const int KEY_COUNT = 512;

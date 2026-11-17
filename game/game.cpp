@@ -5,8 +5,15 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <cstring>
+#include <string>
 
 namespace game {
+
+    // Shown on screen and in the window title; must match the report and the topic sheet.
+    static const char* const TOPIC_TITLE = "LANE RUNNER: DYNAMIC DAY/NIGHT LIGHTING";
+    static const char* const TEAM_LINE = "TEAM MOGGERS - RUDOV / YUN / MUKHAMED-RAKHYM / TUTKYSHBAEVA";
 
     static const float LANE_WIDTH = 3.4f;
     static const float ROAD_HALF = LANE_WIDTH * LANE_COUNT * 0.5f + 1.1f;
@@ -313,6 +320,25 @@ namespace game {
         b.box(glm::translate(I, glm::vec3(0.0f, 1.02f, 0.0f)), glm::vec3(1.08f, 0.05f, 1.08f),
             glm::vec3(0.35f, 0.35f, 0.38f));
         b.build(buildingRoof_);
+
+        // Roadside hill: one bicubic Bezier patch over x, z in [-1, 1]. All 12 border
+        // control points are at height 0, and the border curves of a Bezier patch depend
+        // only on its border points, so the hill meets the flat ground without a seam.
+        // The four inner points lift the middle. Every hill scales this unit patch.
+        static const float G[4] = { -1.0f, -1.0f / 3.0f, 1.0f / 3.0f, 1.0f };
+        static const float H[4][4] = {
+            { 0.0f, 0.0f, 0.0f, 0.0f },
+            { 0.0f, 1.3f, 1.0f, 0.0f },
+            { 0.0f, 0.9f, 1.6f, 0.0f },
+            { 0.0f, 0.0f, 0.0f, 0.0f },
+        };
+        glm::vec3 net[16];
+        for (int i = 0; i < 4; ++i)
+            for (int j = 0; j < 4; ++j) net[4 * i + j] = glm::vec3(G[i], H[i][j], G[j]);
+        b.clear();
+        b.uvPerMeter(1.0f / GRASS_TILE * 12.0f);
+        b.bezierPatch(I, net, 16, glm::vec3(0.12f, 0.25f, 0.11f));
+        b.build(hill_);
     }
 
     void Game::buildProps() {
@@ -350,6 +376,22 @@ namespace game {
                 props_.push_back(p);
             }
         }
+
+        // Hills stand behind the trees and towers, about one every 60 m on each side.
+        for (float z = DESPAWN_Z; z > DESPAWN_Z - PROP_SPAN; z -= 60.0f) {
+            for (int s = -1; s <= 1; s += 2) {
+                Prop h;
+                h.type = Prop::Hill;
+                h.x = s * randRange(62.0f, 85.0f);
+                h.z = z + randRange(-12.0f, 12.0f);
+                h.scale = randRange(16.0f, 26.0f);
+                h.depth = randRange(22.0f, 34.0f);
+                h.height = randRange(14.0f, 26.0f);
+                float k = randRange(0.85f, 1.15f);
+                h.color = glm::vec3(k, k, k);
+                props_.push_back(h);
+            }
+        }
     }
 
     void Game::update(engine::Window& window) {
@@ -375,6 +417,20 @@ namespace game {
         if (window.keyPressed(GLFW_KEY_3)) { setDayTime(0.75f); dayCycle_ = false; }
         if (window.keyPressed(GLFW_KEY_4)) dayCycle_ = !dayCycle_;
         if (window.keyPressed(GLFW_KEY_5)) setLightingEnabled(!lightingEnabled());
+        if (window.keyPressed(GLFW_KEY_B)) hills_ = !hills_;
+        if (window.keyPressed(GLFW_KEY_V)) { vsync_ = !vsync_; window.setVsync(vsync_); }
+
+        // Manual light control, also while paused: [ and ] turn the sun around the
+        // vertical axis, - and = move it along its daily arc (this stops the cycle).
+        const float rdt = std::min(window.dt(), 0.1f);
+        sunYaw_ += glm::radians(60.0f) * rdt *
+            (int(window.keyDown(GLFW_KEY_RIGHT_BRACKET)) - int(window.keyDown(GLFW_KEY_LEFT_BRACKET)));
+        sunYaw_ = std::remainder(sunYaw_, TWO_PI);
+        int arc = int(window.keyDown(GLFW_KEY_EQUAL)) - int(window.keyDown(GLFW_KEY_MINUS));
+        if (arc != 0) {
+            setDayTime(dayTime_ + arc * rdt / 12.0f);
+            dayCycle_ = false;
+        }
 
 
         if (window.keyPressed(GLFW_KEY_ESCAPE)) window.close();
@@ -931,6 +987,8 @@ namespace game {
 
         float angle = dayTime_ * TWO_PI;
         glm::vec3 sunDir = glm::normalize(glm::vec3(std::cos(angle) * 0.9f, std::sin(angle), -0.35f));
+        float cy = std::cos(sunYaw_), sy = std::sin(sunYaw_);
+        sunDir = glm::vec3(cy * sunDir.x + sy * sunDir.z, sunDir.y, -sy * sunDir.x + cy * sunDir.z);
         float elevation = sunDir.y;
         float day = glm::smoothstep(-0.12f, 0.18f, elevation);
         night_ = 1.0f - day;
@@ -1114,6 +1172,17 @@ namespace game {
     }
 
     void Game::render(engine::Window& window) {
+        if (fpsStart_ < 0.0f) fpsStart_ = window.time();
+        ++fpsFrames_;
+        float span = window.time() - fpsStart_;
+        if (span >= 0.5f) {
+            fps_ = fpsFrames_ / span;
+            frameMs_ = 1000.0f * span / fpsFrames_;
+            fpsFrames_ = 0;
+            fpsStart_ = window.time();
+        }
+
+        env_.time = static_cast<float>(window.time());
         renderer_.beginFrame(camera_, env_);
         renderer_.drawSky();
 
@@ -1163,7 +1232,17 @@ namespace game {
                 engine::Material m;
                 m.tint = p.color;
                 m.specular = 0.05f;
+                m.sway = 0.3f * p.scale;
                 renderer_.draw(tree_, glm::scale(model, glm::vec3(p.scale)), m);
+                break;
+            }
+            case Prop::Hill: {
+                if (!hills_) break;
+                engine::Material m;
+                m.tint = p.color;
+                m.specular = 0.0f;
+                m.texture = &grassTex_;
+                renderer_.draw(hill_, glm::scale(model, glm::vec3(p.scale, p.height, p.depth)), m);
                 break;
             }
             case Prop::Building: {
@@ -1238,9 +1317,11 @@ namespace game {
             renderer_.draw(spark_, glm::scale(glm::translate(I, s.pos), glm::vec3(k)), sparkMat);
         }
 
-        window.setTitle(std::string("Lane Runner | 1 Day  2 Sunset  3 Night  4 Cycle: ") +
+        window.setTitle(std::string("Lane Runner - Team Moggers | 1 Day  2 Sunset  3 Night  4 Cycle: ") +
             (dayCycle_ ? "ON" : "OFF") +
             " | 5 Dynamic lighting: " + (lightingEnabled() ? "ON" : "OFF") +
+            " | B Hills: " + (hills_ ? "ON" : "OFF") +
+            " | FPS " + std::to_string(static_cast<int>(fps_ + 0.5f)) +
             (cameraMode_ == CameraMode::Free
                 ? " | FREE-FLY: IJKL fly, Q/E down/up, mouse drag look, wheel fly, Shift fast, WASD/arrows drive, C next camera"
                 : cameraMode_ == CameraMode::Orbit
@@ -1290,9 +1371,9 @@ namespace game {
         }
 
         // Scale the help panel with the framebuffer, including Retina displays.
-        const float ui = std::min(w / 1200.0f, h / 680.0f);
+        const float ui = std::min(w / 1200.0f, h / 700.0f);
         if (showHelp_) {
-            const float panelW = 1120.0f * ui, panelH = 550.0f * ui;
+            const float panelW = 1120.0f * ui, panelH = 580.0f * ui;
             const float left = (w - panelW) * 0.5f, top = (h - panelH) * 0.5f;
             hud_.rect(0, 0, w, h, glm::vec4(0, 0, 0, 0.45f));
             hud_.rect(left, top, panelW, panelH, glm::vec4(0.03f, 0.05f, 0.09f, 0.97f));
@@ -1328,11 +1409,29 @@ namespace game {
             line(590, 364, "HOLD LEFT/RIGHT MOUSE - ROTATE", white);
             line(590, 394, "Q/E - ROTATE AROUND CAR", white);
             line(590, 424, "WHEEL OR Z/X - ZOOM IN / OUT", white);
-            line(590, 468, "P TO PAUSE WHILE EXPLORING", white);
-            line(28, 516, "GAME PAUSED. F1 / H CLOSES HELP.", amber);
+            line(590, 454, "SCENE AND TESTS", amber);
+            line(590, 484, "B - BEZIER HILLS   V - VSYNC", white);
+            line(590, 514, "[ ] - TURN SUN   - = - MOVE SUN", white);
+            line(28, 546, "GAME PAUSED. F1 / H CLOSES HELP.", amber);
         } else {
             hud_.rect(12 * ui, h - 34 * ui, 220 * ui, 26 * ui, glm::vec4(0, 0, 0, 0.65f));
             hud_.text(20 * ui, h - 28 * ui, 2 * ui, "F1 / H - CONTROLS", white);
+        }
+        // Topic and team, centred in the top bar.
+        {
+            const float s = 2.0f * ui;
+            float topicW = 6.0f * s * static_cast<float>(std::strlen(TOPIC_TITLE));
+            float teamW = 6.0f * s * static_cast<float>(std::strlen(TEAM_LINE));
+            hud_.text((w - topicW) * 0.5f, 14.0f * ui, s, TOPIC_TITLE, amber);
+            hud_.text((w - teamW) * 0.5f, 42.0f * ui, s, TEAM_LINE, white);
+        }
+        // Frame rate and frame time; VSync caps the rate at the display refresh.
+        {
+            char fpsText[64];
+            std::snprintf(fpsText, sizeof(fpsText), "FPS: %d  %.1f MS  VSYNC: %s",
+                static_cast<int>(fps_ + 0.5f), frameMs_, vsync_ ? "ON" : "OFF");
+            hud_.rect(12 * ui, h - 64 * ui, 372 * ui, 26 * ui, glm::vec4(0, 0, 0, 0.65f));
+            hud_.text(20 * ui, h - 58 * ui, 2 * ui, fpsText, white);
         }
         // Keep the comparison state visible in every camera, on pause and in help.
         hud_.rect(w - 372 * ui, h - 34 * ui, 360 * ui, 26 * ui, glm::vec4(0, 0, 0, 0.65f));

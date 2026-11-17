@@ -189,6 +189,63 @@ MeshBuilder& MeshBuilder::wedge(const glm::mat4& xform, const glm::vec3& size, f
     return *this;
 }
 
+// Cubic Bernstein basis B_k(t) and its derivative dB_k/dt, k = 0..3.
+static void bernstein(float t, float b[4], float d[4]) {
+    float s = 1.0f - t;
+    b[0] = s * s * s;
+    b[1] = 3.0f * t * s * s;
+    b[2] = 3.0f * t * t * s;
+    b[3] = t * t * t;
+    d[0] = -3.0f * s * s;
+    d[1] = 3.0f * s * s - 6.0f * t * s;
+    d[2] = 6.0f * t * s - 3.0f * t * t;
+    d[3] = 3.0f * t * t;
+}
+
+MeshBuilder& MeshBuilder::bezierPatch(const glm::mat4& xform, const glm::vec3* ctrl, int segments,
+                                      const glm::vec3& color) {
+    if (segments < 1) segments = 1;
+    glm::mat3 nm = glm::inverseTranspose(glm::mat3(xform));
+    GLuint base = static_cast<GLuint>(vertices_.size());
+
+    for (int iu = 0; iu <= segments; ++iu) {
+        float bu[4], du[4];
+        bernstein(static_cast<float>(iu) / segments, bu, du);
+        for (int iv = 0; iv <= segments; ++iv) {
+            float bv[4], dv[4];
+            bernstein(static_cast<float>(iv) / segments, bv, dv);
+
+            glm::vec3 p(0.0f), pu(0.0f), pv(0.0f);
+            for (int i = 0; i < 4; ++i) {
+                for (int j = 0; j < 4; ++j) {
+                    const glm::vec3& c = ctrl[4 * i + j];
+                    p += bu[i] * bv[j] * c;
+                    pu += du[i] * bv[j] * c;
+                    pv += bu[i] * dv[j] * c;
+                }
+            }
+            // With u along +X and v along +Z, cross(dP/dv, dP/du) points up (+Y).
+            glm::vec3 n = glm::normalize(nm * glm::normalize(glm::cross(pv, pu)));
+            vertices_.push_back({glm::vec3(xform * glm::vec4(p, 1.0f)), n, color,
+                                 glm::vec2(p.x, p.z) * uvPerMeter_});
+        }
+    }
+
+    const int row = segments + 1;
+    for (int iu = 0; iu < segments; ++iu) {
+        for (int iv = 0; iv < segments; ++iv) {
+            GLuint a = base + iu * row + iv, b = a + row, c = b + 1, d = a + 1;
+            indices_.push_back(a);  // counter-clockwise seen from above
+            indices_.push_back(d);
+            indices_.push_back(c);
+            indices_.push_back(a);
+            indices_.push_back(c);
+            indices_.push_back(b);
+        }
+    }
+    return *this;
+}
+
 void MeshBuilder::build(Mesh& out) const { out.upload(vertices_, indices_); }
 
 }  // namespace engine
