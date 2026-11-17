@@ -1,3 +1,6 @@
+// GLSL shader program. Reads the shader files, compiles and links them, prints any compile or
+// link error to the console and caches uniform locations.
+
 #include "shader.h"
 
 #include <glm/gtc/type_ptr.hpp>
@@ -122,4 +125,4 @@ void Shader::setFloatArray(const char* n, const float* v, int count) {
     if (count > 0) glUniform1fv(location(n), count, v);
 }
 
-}  // namespace engine
+}

@@ -1,3 +1,6 @@
+// Transform hierarchy. Each node keeps a local matrix and computes world = parentWorld *
+// local, so wheels and lamps stay attached to the car body.
+
 #ifndef ENGINE_NODE_H
 #define ENGINE_NODE_H
 
@@ -10,8 +13,6 @@
 
 namespace engine {
 
-// A node of a transform tree: world = parent world * local. The mesh is optional,
-// so a node can also be a pure pivot (a wheel axle, a light mount).
 struct Node {
     glm::mat4 local{1.0f};
     const Mesh* mesh = nullptr;
@@ -19,7 +20,6 @@ struct Node {
     bool visible = true;
     std::vector<Node> children;
 
-    // World matrix cached by updateWorld(); read it after the update (lights, attachments).
     const glm::mat4& world() const { return world_; }
 
     Node& add(Node child) {
@@ -42,6 +42,6 @@ private:
     glm::mat4 world_{1.0f};
 };
 
-}  // namespace engine
+}
 
 #endif

@@ -1,3 +1,7 @@
+// Mesh upload (VAO, VBO, EBO) and the MeshBuilder shapes. bezierPatch evaluates P(u,v) = sum
+// Bi(u) Bj(v) Pij with the cubic Bernstein basis and takes normals from the cross product of
+// dP/du and dP/dv.
+
 #include "mesh.h"
 
 #include <glm/gtc/matrix_inverse.hpp>
@@ -86,18 +90,15 @@ MeshBuilder& MeshBuilder::facadeLayout(bool enabled) {
     return *this;
 }
 
-// The face is projected along its dominant normal axis. The signs are chosen so
-// that v grows towards -Z on every face of the road layout; the road, curbs and
-// grass then scroll in one direction when the texture offset is increased.
 glm::vec2 MeshBuilder::projectUv(const glm::vec3& p, const glm::vec3& n) const {
     glm::vec3 a = glm::abs(n);
     glm::vec2 uv;
     if (a.y >= a.x && a.y >= a.z) {
-        uv = glm::vec2(p.x, -p.z);                                   // floor / roof
+        uv = glm::vec2(p.x, -p.z);
     } else if (a.x >= a.z) {
-        uv = facadeLayout_ ? glm::vec2(p.z, p.y) : glm::vec2(p.y, -p.z);  // side walls
+        uv = facadeLayout_ ? glm::vec2(p.z, p.y) : glm::vec2(p.y, -p.z);
     } else {
-        uv = glm::vec2(p.x, p.y);                                    // front / back walls
+        uv = glm::vec2(p.x, p.y);
     }
     return uv * uvPerMeter_;
 }
@@ -135,12 +136,12 @@ MeshBuilder& MeshBuilder::box(const glm::mat4& xform, const glm::vec3& size,
         p010(-h.x, h.y, -h.z), p001(-h.x, -h.y, h.z), p101(h.x, -h.y, h.z), p111(h.x, h.y, h.z),
         p011(-h.x, h.y, h.z);
 
-    addQuad(xform, nm, p001, p101, p111, p011, color);  // +Z
-    addQuad(xform, nm, p100, p000, p010, p110, color);  // -Z
-    addQuad(xform, nm, p101, p100, p110, p111, color);  // +X
-    addQuad(xform, nm, p000, p001, p011, p010, color);  // -X
-    addQuad(xform, nm, p011, p111, p110, p010, color);  // +Y
-    addQuad(xform, nm, p000, p100, p101, p001, color);  // -Y
+    addQuad(xform, nm, p001, p101, p111, p011, color);
+    addQuad(xform, nm, p100, p000, p010, p110, color);
+    addQuad(xform, nm, p101, p100, p110, p111, color);
+    addQuad(xform, nm, p000, p001, p011, p010, color);
+    addQuad(xform, nm, p011, p111, p110, p010, color);
+    addQuad(xform, nm, p000, p100, p101, p001, color);
     return *this;
 }
 
@@ -153,7 +154,6 @@ MeshBuilder& MeshBuilder::plane(const glm::mat4& xform, float width, float depth
     return *this;
 }
 
-// Cylinder around the local X axis: the orientation wheels need.
 MeshBuilder& MeshBuilder::cylinder(const glm::mat4& xform, float radius, float height, int segments,
                                    const glm::vec3& color) {
     glm::mat3 nm = glm::inverseTranspose(glm::mat3(xform));
@@ -171,7 +171,6 @@ MeshBuilder& MeshBuilder::cylinder(const glm::mat4& xform, float radius, float h
     return *this;
 }
 
-// Box whose +Z face is scaled down: a windscreen-like cabin slope.
 MeshBuilder& MeshBuilder::wedge(const glm::mat4& xform, const glm::vec3& size, float topScale,
                                 const glm::vec3& color) {
     glm::mat3 nm = glm::inverseTranspose(glm::mat3(xform));
@@ -189,7 +188,6 @@ MeshBuilder& MeshBuilder::wedge(const glm::mat4& xform, const glm::vec3& size, f
     return *this;
 }
 
-// Cubic Bernstein basis B_k(t) and its derivative dB_k/dt, k = 0..3.
 static void bernstein(float t, float b[4], float d[4]) {
     float s = 1.0f - t;
     b[0] = s * s * s;
@@ -224,7 +222,6 @@ MeshBuilder& MeshBuilder::bezierPatch(const glm::mat4& xform, const glm::vec3* c
                     pv += bu[i] * dv[j] * c;
                 }
             }
-            // With u along +X and v along +Z, cross(dP/dv, dP/du) points up (+Y).
             glm::vec3 n = glm::normalize(nm * glm::normalize(glm::cross(pv, pu)));
             vertices_.push_back({glm::vec3(xform * glm::vec4(p, 1.0f)), n, color,
                                  glm::vec2(p.x, p.z) * uvPerMeter_});
@@ -235,7 +232,7 @@ MeshBuilder& MeshBuilder::bezierPatch(const glm::mat4& xform, const glm::vec3* c
     for (int iu = 0; iu < segments; ++iu) {
         for (int iv = 0; iv < segments; ++iv) {
             GLuint a = base + iu * row + iv, b = a + row, c = b + 1, d = a + 1;
-            indices_.push_back(a);  // counter-clockwise seen from above
+            indices_.push_back(a);
             indices_.push_back(d);
             indices_.push_back(c);
             indices_.push_back(a);
@@ -248,4 +245,4 @@ MeshBuilder& MeshBuilder::bezierPatch(const glm::mat4& xform, const glm::vec3* c
 
 void MeshBuilder::build(Mesh& out) const { out.upload(vertices_, indices_); }
 
-}  // namespace engine
+}

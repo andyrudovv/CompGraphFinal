@@ -1,18 +1,21 @@
+// Program entry. Reads the command-line options, creates the window and the game, runs the
+// main loop and handles screenshots and the FPS benchmark.
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
 
-#include "game.h"       // pulls in GLEW, which must come before GLFW
+#include "game.h"
 #include <GLFW/glfw3.h>
 
 int main(int argc, char** argv) {
-    int frameLimit = 0;          // --frames N: quit after N frames (smoke test)
-    std::string shotPath;        // --shot file.ppm: save the last frame
-    float startTime = -1.0f;     // --time 0..1: where the day/night cycle starts
+    int frameLimit = 0;
+    std::string shotPath;
+    float startTime = -1.0f;
     bool lightingEnabled = true;
     bool vsync = true;
-    float benchSeconds = 0.0f;   // --bench S: measure the average FPS over S seconds, then quit
+    float benchSeconds = 0.0f;
 
     for (int i = 1; i < argc; ++i) {
         if (!std::strcmp(argv[i], "--frames") && i + 1 < argc) frameLimit = std::atoi(argv[++i]);
@@ -36,7 +39,6 @@ int main(int argc, char** argv) {
     window.setVsync(vsync);
     game.setVsync(vsync);
 
-    // The benchmark skips the first two seconds (shader warm-up, first uploads).
     const float warmup = 2.0f;
     int benchFrames = 0;
     float benchStart = -1.0f;

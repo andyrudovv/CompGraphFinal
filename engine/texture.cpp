@@ -1,3 +1,6 @@
+// Uploads an image as an OpenGL texture with repeat wrapping, mipmaps, trilinear filtering and
+// anisotropic filtering when the driver supports it.
+
 #include "texture.h"
 
 #include <algorithm>
@@ -56,4 +59,4 @@ void Texture::bind(unsigned unit) const {
     glBindTexture(GL_TEXTURE_2D, id_);
 }
 
-}  // namespace engine
+}

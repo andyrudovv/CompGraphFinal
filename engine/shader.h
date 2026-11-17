@@ -1,3 +1,6 @@
+// GLSL shader program. Loads a vertex and a fragment shader from files and sets uniforms by
+// name.
+
 #ifndef ENGINE_SHADER_H
 #define ENGINE_SHADER_H
 
@@ -34,10 +37,8 @@ private:
     std::unordered_map<std::string, GLint> locations_;
 };
 
-// Resolves an asset next to the working directory or one level above it, so the
-// binary runs both from the project root and from build/.
 std::string assetPath(const std::string& relative);
 
-}  // namespace engine
+}
 
 #endif

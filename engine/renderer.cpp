@@ -1,3 +1,6 @@
+// Forward renderer. Sends the camera, lights, fog and lighting toggle to the scene shader once
+// per frame, then draws each mesh with its model matrix and material, and draws the sky.
+
 #include "renderer.h"
 
 #include <glm/gtc/matrix_inverse.hpp>
@@ -10,9 +13,9 @@ namespace engine {
 bool Renderer::init() {
     if (!scene_.loadFromFiles("shaders/scene.vert", "shaders/scene.frag")) return false;
     if (!sky_.loadFromFiles("shaders/sky.vert", "shaders/sky.frag")) return false;
-    glGenVertexArrays(1, &emptyVao_);  // core profile needs a bound VAO even without attributes
+    glGenVertexArrays(1, &emptyVao_);
     scene_.use();
-    scene_.setInt("uTex", 0);  // the scene sampler always reads texture unit 0
+    scene_.setInt("uTex", 0);
     return true;
 }
 
@@ -116,4 +119,4 @@ void Renderer::draw(const Mesh& mesh, const glm::mat4& model, const Material& ma
     mesh.draw();
 }
 
-}  // namespace engine
+}

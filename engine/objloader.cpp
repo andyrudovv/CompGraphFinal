@@ -1,6 +1,9 @@
+// Reads OBJ geometry and MTL diffuse colours, centres and scales the model and splits paint
+// from other parts. If a file is missing the game falls back to the built-in models.
+
 #include "objloader.h"
 
-#include "shader.h"  // assetPath
+#include "shader.h"
 
 #include <algorithm>
 #include <cctype>
@@ -40,7 +43,6 @@ namespace engine {
             return s.substr(a, b - a + 1);
         }
 
-        // Everything after the keyword: material and file names may contain spaces.
         std::string restOfLine(std::istringstream& ss) {
             std::string rest;
             std::getline(ss, rest);
@@ -52,7 +54,6 @@ namespace engine {
             return pos == std::string::npos ? std::string() : path.substr(0, pos + 1);
         }
 
-        // OBJ indices are 1-based, negative ones count from the end; 0 / empty = missing.
         int fixIndex(const std::string& token, std::size_t count) {
             if (token.empty()) return -1;
             int i = std::atoi(token.c_str());
@@ -106,7 +107,7 @@ namespace engine {
             return glm::vec3(c * v.x + s * v.z, v.y, -s * v.x + c * v.z);
         }
 
-    }  // namespace
+    }
 
     bool loadObjModel(const std::string& path, const ObjOptions& options, Mesh& paint, Mesh& rest) {
         std::string full = assetPath(path);
@@ -119,7 +120,7 @@ namespace engine {
         std::vector<glm::vec3> positions, normals;
         std::vector<glm::vec2> uvs;
         std::map<std::string, glm::vec3> mtlColors;
-        std::vector<std::string> materials{ "" };  // index 0: faces before any usemtl
+        std::vector<std::string> materials{ "" };
         std::map<std::string, int> materialIndex{ {"", 0} };
         int currentMaterial = 0;
         std::vector<Tri> tris;
@@ -162,7 +163,6 @@ namespace engine {
                 while (ss >> token) {
                     corners.push_back(parseCorner(token, positions.size(), uvs.size(), normals.size()));
                 }
-                // Fan triangulation; faces with broken indices are skipped.
                 for (std::size_t k = 1; k + 1 < corners.size(); ++k) {
                     const Corner c[3] = { corners[0], corners[k], corners[k + 1] };
                     Tri t;
@@ -194,7 +194,6 @@ namespace engine {
             return false;
         }
 
-        // ---- orientation: turn the model so its length runs along Z
         glm::vec3 lo(1e30f), hi(-1e30f);
         for (const Tri& t : tris) {
             for (const glm::vec3& p : t.p) {
@@ -217,12 +216,10 @@ namespace engine {
             }
         }
 
-        // ---- centre on the ground and scale to the wanted length
         float lengthZ = hi.z - lo.z;
         float scale = lengthZ > 1e-6f ? options.length / lengthZ : 1.0f;
         glm::vec3 anchor((lo.x + hi.x) * 0.5f, lo.y, (lo.z + hi.z) * 0.5f);
 
-        // ---- which materials are paint
         std::vector<int> triCount(materials.size(), 0);
         for (const Tri& t : tris) ++triCount[t.material];
 
@@ -242,14 +239,13 @@ namespace engine {
             paintSet.insert(biggest);
         }
 
-        // ---- build the two meshes
         std::vector<Vertex> pv, rv;
         std::vector<GLuint> pi, ri;
         for (const Tri& t : tris) {
             glm::vec3 p[3];
             for (int q = 0; q < 3; ++q) p[q] = (t.p[q] - anchor) * scale;
             glm::vec3 face = glm::cross(p[1] - p[0], p[2] - p[0]);
-            if (glm::length(face) < 1e-12f) continue;  // degenerate
+            if (glm::length(face) < 1e-12f) continue;
             face = glm::normalize(face);
 
             bool isPaint = paintSet.count(t.material) > 0;
@@ -279,4 +275,4 @@ namespace engine {
         return true;
     }
 
-}  // namespace engine
+}

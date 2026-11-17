@@ -1,3 +1,5 @@
+// Screen-space HUD: rectangles, bars, seven-segment numbers and a small built-in bitmap font.
+
 #ifndef ENGINE_HUD_H
 #define ENGINE_HUD_H
 
@@ -10,8 +12,6 @@
 
 namespace engine {
 
-// Screen-space overlay: rectangles, seven-segment numbers and a built-in bitmap font.
-// Coordinates are pixels with the origin in the top-left corner.
 class Hud {
 public:
     bool init();
@@ -22,7 +22,6 @@ public:
 
     void rect(float x, float y, float w, float h, const glm::vec4& color);
     void bar(float x, float y, float w, float h, float fill, const glm::vec4& color);
-    // Draws value right-aligned in `digits` cells; each cell is about size*0.7 wide.
     void number(float x, float y, float size, int value, int digits, const glm::vec4& color);
     void text(float x, float y, float scale, const std::string& value, const glm::vec4& color);
     void digitGlyph(float x, float y, float size, int digit, const glm::vec4& color);
@@ -34,6 +33,6 @@ private:
     glm::vec2 screen_{1.0f};
 };
 
-}  // namespace engine
+}
 
 #endif

@@ -1,3 +1,6 @@
+// HUD drawing in pixel coordinates with alpha blending. Text uses a 5x7 glyph table, so no
+// font file is needed.
+
 #include "hud.h"
 
 #include <cctype>
@@ -5,7 +8,6 @@
 
 namespace engine {
 
-// Seven-segment masks for 0..9, bit order a,b,c,d,e,f,g.
 static const unsigned char SEGMENTS[10] = {0x3F, 0x06, 0x5B, 0x4F, 0x66,
                                            0x6D, 0x7D, 0x07, 0x7F, 0x6F};
 
@@ -40,7 +42,7 @@ Hud::~Hud() {
 void Hud::begin(int screenWidth, int screenHeight) {
     screen_ = glm::vec2(static_cast<float>(screenWidth), static_cast<float>(screenHeight));
     glDisable(GL_DEPTH_TEST);
-    glDisable(GL_CULL_FACE);  // the y flip reverses the quad winding
+    glDisable(GL_CULL_FACE);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     shader_.use();
@@ -61,7 +63,6 @@ void Hud::rect(float x, float y, float w, float h, const glm::vec4& color) {
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
-// Five by seven uppercase glyphs, drawn as a single batch per text line.
 void Hud::text(float x, float y, float scale, const std::string& value, const glm::vec4& color) {
     struct Glyph { char letter; unsigned char rows[7]; };
     static const Glyph font[] = {
@@ -129,17 +130,17 @@ void Hud::bar(float x, float y, float w, float h, float fill, const glm::vec4& c
 void Hud::digitGlyph(float x, float y, float size, int digit, const glm::vec4& color) {
     if (digit < 0 || digit > 9) return;
     unsigned char mask = SEGMENTS[digit];
-    float t = size * 0.14f;         // stroke thickness
-    float w = size * 0.6f;          // glyph width
+    float t = size * 0.14f;
+    float w = size * 0.6f;
     float mid = y + size * 0.5f;
 
-    if (mask & 0x01) rect(x + t, y, w - 2 * t, t, color);                       // a
-    if (mask & 0x02) rect(x + w - t, y + t, t, size * 0.5f - 1.5f * t, color);  // b
-    if (mask & 0x04) rect(x + w - t, mid + t * 0.5f, t, size * 0.5f - 1.5f * t, color);  // c
-    if (mask & 0x08) rect(x + t, y + size - t, w - 2 * t, t, color);            // d
-    if (mask & 0x10) rect(x, mid + t * 0.5f, t, size * 0.5f - 1.5f * t, color); // e
-    if (mask & 0x20) rect(x, y + t, t, size * 0.5f - 1.5f * t, color);          // f
-    if (mask & 0x40) rect(x + t, mid - t * 0.5f, w - 2 * t, t, color);          // g
+    if (mask & 0x01) rect(x + t, y, w - 2 * t, t, color);
+    if (mask & 0x02) rect(x + w - t, y + t, t, size * 0.5f - 1.5f * t, color);
+    if (mask & 0x04) rect(x + w - t, mid + t * 0.5f, t, size * 0.5f - 1.5f * t, color);
+    if (mask & 0x08) rect(x + t, y + size - t, w - 2 * t, t, color);
+    if (mask & 0x10) rect(x, mid + t * 0.5f, t, size * 0.5f - 1.5f * t, color);
+    if (mask & 0x20) rect(x, y + t, t, size * 0.5f - 1.5f * t, color);
+    if (mask & 0x40) rect(x + t, mid - t * 0.5f, w - 2 * t, t, color);
 }
 
 void Hud::number(float x, float y, float size, int value, int digits, const glm::vec4& color) {
@@ -148,8 +149,8 @@ void Hud::number(float x, float y, float size, int value, int digits, const glm:
     for (int i = digits - 1; i >= 0; --i) {
         digitGlyph(x + advance * i, y, size, value % 10, color);
         value /= 10;
-        if (value == 0) break;  // no leading zeros
+        if (value == 0) break;
     }
 }
 
-}  // namespace engine
+}

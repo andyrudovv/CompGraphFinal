@@ -1,6 +1,7 @@
 #version 330 core
 
-// Attribute-less full-screen triangle; the fragment shader rebuilds view rays.
+// Sky vertex shader. Draws one full-screen triangle without any vertex buffer.
+
 out vec2 vNdc;
 
 void main() {

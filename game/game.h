@@ -1,3 +1,5 @@
+// Game state: player, traffic, props, particles, cameras, day/night cycle and HUD state.
+
 #ifndef GAME_GAME_H
 #define GAME_GAME_H
 
@@ -13,35 +15,32 @@ namespace game {
     struct TrafficCar {
         float x = 0.0f;
         float z = 0.0f;
-        float speed = 20.0f;   // current own forward speed (changes when following / wrecked)
-        float cruise = 20.0f;  // speed the driver wants to keep
+        float speed = 20.0f;
+        float cruise = 20.0f;
         int lane = 1;
         int targetLane = 1;
         float changeCooldown = 3.0f;
         glm::vec3 color{ 1.0f };
-        bool counted = false;  // already scored as an overtake
+        bool counted = false;
 
-        int type = 0;          // 0 = sedan, 1 = truck
-        float halfX = 0.95f;   // half extents of the collision box
+        int type = 0;
+        float halfX = 0.95f;
         float halfZ = 2.1f;
-        bool braking = false;  // brake lights
+        bool braking = false;
         float wheelAngle = 0.0f;
 
-        // Wreck state: after a car-to-car crash the car spins and slides to the shoulder.
         bool wrecked = false;
-        float slideDir = 1.0f; // -1 left shoulder, +1 right shoulder
-        float vx = 0.0f;       // sideways velocity
-        float yaw = 0.0f;      // heading offset (lane-change lean or wreck spin)
+        float slideDir = 1.0f;
+        float vx = 0.0f;
+        float yaw = 0.0f;
         float yawVel = 0.0f;
-        float hitTimer = 0.0f; // > 0: a fresh impact, no new sparks/debris yet (stops spam)
+        float hitTimer = 0.0f;
     };
 
-    // Transform tree of one car: body -> (trim, wheels, lamps, tail lights). The pointers
-    // point into root.children, so a rig must never be copied after it is built.
     struct CarRig {
         engine::Node root;
-        engine::Node* cargo = nullptr;       // trucks only
-        engine::Node* wheels[4] = {};        // null when a loaded model brings its own wheels
+        engine::Node* cargo = nullptr;
+        engine::Node* wheels[4] = {};
         glm::vec3 wheelPos[4];
         engine::Node* lamps[2] = {};
         engine::Node* tail = nullptr;
@@ -53,24 +52,22 @@ namespace game {
         float z = 0.0f;
         float scale = 1.0f;
         float height = 1.0f;
-        float depth = 1.0f;   // hills only: half length along the road
+        float depth = 1.0f;
         glm::vec3 color{ 1.0f };
     };
 
     struct Spark {
         glm::vec3 pos{ 0.0f };
-        glm::vec3 vel{ 0.0f };   // world-space velocity (the road is the reference frame)
+        glm::vec3 vel{ 0.0f };
         float life = 0.0f;
     };
 
-    // A broken-off piece of a car (body panel or glass) that flies, bounces and
-    // then lies on the road until it scrolls away behind the camera.
     struct Debris {
         glm::vec3 pos{ 0.0f };
-        glm::vec3 vel{ 0.0f };   // road frame, like Spark
+        glm::vec3 vel{ 0.0f };
         glm::vec3 axis{ 1.0f, 0.0f, 0.0f };
         float angle = 0.0f;
-        float spin = 0.0f;       // rad/s around axis
+        float spin = 0.0f;
         glm::vec3 size{ 0.3f };
         glm::vec3 color{ 1.0f };
         float life = 0.0f;
@@ -96,6 +93,7 @@ namespace game {
         void buildMeshes();
         void buildProps();
         void updatePlayer(engine::Window& window, float dt);
+        void updateJump(float dt);
         void updateTraffic(float dt);
         void updateWorld(float dt);
         void updateDayNight(float dt);
@@ -130,8 +128,7 @@ namespace game {
         CameraMode cameraMode_ = CameraMode::Chase;
         float cameraYaw_ = 0.0f;
         float cameraPitch_ = 0.0f;
-        // Orbit camera: spherical coordinates around the player's car.
-        float orbitYaw_ = 0.6f;    // 0 = straight behind the car
+        float orbitYaw_ = 0.6f;
         float orbitPitch_ = 0.3f;
         float orbitDist_ = 9.0f;
 
@@ -141,14 +138,11 @@ namespace game {
         engine::Mesh spark_, shard_;
         CarRig sedanRig_, truckRig_;
 
-        // Optional downloaded models (models/car.obj, models/truck.obj). When a file is
-        // missing the procedural box cars are used, so the game always runs.
         engine::Mesh carModelPaint_, carModelRest_, truckModelPaint_, truckModelRest_;
         bool carModel_ = false;
         bool truckModel_ = false;
         engine::Mesh lampPole_, lampHead_, tree_, building_, buildingRoof_, hill_;
 
-        // Procedural textures (generated in init, nothing is loaded from disk).
         engine::Texture grassTex_, asphaltTex_, concreteTex_, facadeTex_;
 
         State state_ = State::Playing;
@@ -158,24 +152,26 @@ namespace game {
         int score_ = 0;
         int best_ = 0;
         float crashFlash_ = 0.0f;
-        float shakeTime_ = 0.0f;   // camera shake, 1 -> 0
+        float shakeTime_ = 0.0f;
         bool paused_ = false;
         bool showHelp_ = false;
         bool dayCycle_ = true;
-        bool hills_ = true;      // B toggles the Bezier hills
-        bool vsync_ = true;      // V toggles VSync, so FPS can be measured without the display cap
+        bool hills_ = true;
+        bool vsync_ = true;
 
-        // FPS counter, averaged over half-second windows.
         float fps_ = 0.0f;
         float frameMs_ = 0.0f;
         int fpsFrames_ = 0;
         float fpsStart_ = -1.0f;
         double accumulator_ = 0.0;
 
-        // Player
         int playerLane_ = 1;
         float playerX_ = 0.0f;
         float playerRoll_ = 0.0f;
+        float playerY_ = 0.0f;
+        float playerVy_ = 0.0f;
+        float jumpCooldown_ = 0.0f;
+        bool jumpRequest_ = false;
         float playerYaw_ = 0.0f;
         float playerYawVel_ = 0.0f;
         float playerVx_ = 0.0f;
@@ -183,20 +179,19 @@ namespace game {
         float speed_ = 24.0f;
         float boost_ = 1.0f;
 
-        // World
         std::vector<TrafficCar> traffic_;
         std::vector<Prop> props_;
         std::vector<Spark> sparks_;
         std::vector<Debris> debris_;
         std::vector<float> dashes_;
         float spawnTimer_ = 1.0f;
-        float dayTime_ = 0.12f;  // 0..1, 0.25 is noon
-        float sunYaw_ = 0.0f;     // extra rotation of the sun around the vertical axis, [ and ] keys
+        float dayTime_ = 0.12f;
+        float sunYaw_ = 0.0f;
         float night_ = 0.0f;
 
         std::mt19937 rng_{ 20260916u };
     };
 
-}  // namespace game
+}
 
 #endif
